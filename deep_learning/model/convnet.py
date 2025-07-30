@@ -12,7 +12,7 @@ class _DropoutNd(nn.Module):
     p: float
     inplace: bool
 
-    def __init__(self, p: float = 0.5, inplace: bool = False) -> None:
+    def __init__(self, p: float = 0.05, inplace: bool = False) -> None:
         super(_DropoutNd, self).__init__()
         if p < 0 or p > 1:
             raise ValueError("dropout probability has to be between 0 and 1, "
@@ -88,73 +88,56 @@ class DecoderNet(pl.LightningModule):
             See `"paper" <https://arxiv.org/pdf/1707.06990.pdf>`_
     """
 
-    def __init__(self, in_channels=1, encoder_depth=3, block_depth=4,
-                 num_representation_features=32,
-                 filters=[128,64,32], initial_kernel_size=7,
-                 drop_rate=0.1, memory_efficient=False,
-                 out_shape=None):
+    def __init__(self,
+                 latent_dim=32,
+                 output_shape=(1, 64, 64, 64),
+                 filters=[128,64,32], 
+                 drop_rate=0.05
+                 ):
 
-        super(DecoderNet, self).__init__()
+        super().__init__()
+        
+        self.output_shape = output_shape  # (C, D, H, W)
+        c, d, h, w = output_shape
+        self.init_d = d // (2 ** len(filters))
+        self.init_h = h // (2 ** len(filters))
+        self.init_w = w // (2 ** len(filters))
+        self.init_channels = filters[0]
+        self.volume_size = self.init_d * self.init_h * self.init_w * self.init_channels
 
-        self.num_representation_features = num_representation_features
-        self.drop_rate = drop_rate
+        self.fc = nn.Sequential(OrderedDict([
+            ("fc1", nn.Linear(latent_dim, 512)),
+            ("relu1", nn.ReLU()),
+            ("fc2", nn.Linear(512, self.volume_size)),
+            ("relu2", nn.ReLU())
+        ]))
 
-        # Decoder part
-        self.out_shape = out_shape
-        c, h, w, d = out_shape
-        self.encoder_depth = encoder_depth
-        self.filters = filters
-        self.block_depth = block_depth
-        self.initial_kernel_size = initial_kernel_size
-        assert len(self.filters) >= encoder_depth, "Incomplete filters list given."
+        # Upsampling path
+        modules = []
+        in_channels = self.init_channels
+        for i, out_channels in enumerate(filters[1:] + [c]):
+            modules.append((
+                f"deconv{i}",
+                nn.ConvTranspose3d(
+                    in_channels, out_channels,
+                    kernel_size=4, stride=2, padding=1
+                )
+            ))
+            if i < len(filters) - 1:
+                modules.append((f"bn{i}", nn.BatchNorm3d(out_channels)))
+                modules.append((f"relu{i}", nn.ReLU()))
+                modules.append((f"dropout{i}", nn.Dropout3d(p=drop_rate)))
+            in_channels = out_channels
 
-        # receptive field downsampled 2 times
-        self.z_dim_h = h//2**self.encoder_depth
-        self.z_dim_w = w//2**self.encoder_depth
-        self.z_dim_d = d//2**self.encoder_depth
-
-        modules_encoder = []
-        layer_name = ['', 'a', 'b', 'c']
-        for step in range(encoder_depth):
-            for depth in range(block_depth-1):
-                name = layer_name[depth]
-                in_channels = 1 if (step == 0 and depth==0) else out_channels
-                kernel_size = self.initial_kernel_size if (step == 0 and depth==0) else 3
-                out_channels = filters[step]
-                #out_channels = 16 if step == 0 else 16 * (2**step)
-                modules_encoder.append(
-                    (f'conv{step}{name}',
-                    nn.Conv3d(in_channels, out_channels,
-                            kernel_size=kernel_size, stride=1, padding=kernel_size//2)
-                    ))
-                modules_encoder.append(
-                    (f'norm{step}{name}', nn.BatchNorm3d(out_channels)))
-                modules_encoder.append((f'LeakyReLU{step}{name}', nn.LeakyReLU()))
-                modules_encoder.append(
-                    (f'DropOut{step}{name}', nn.Dropout3d(p=drop_rate)))
-
-            name=layer_name[block_depth-1]
-            modules_encoder.append(
-                (f'conv{step}{name}',
-                nn.Conv3d(out_channels, out_channels,
-                        kernel_size=4, stride=2, padding=1)
-                ))
-            modules_encoder.append(
-                (f'norm{step}{name}', nn.BatchNorm3d(out_channels)))
-            modules_encoder.append((f'LeakyReLU{step}{name}', nn.LeakyReLU()))
-            modules_encoder.append(
-                (f'DropOut{step}{name}', nn.Dropout3d(p=drop_rate)))
-            self.num_features = out_channels
-        # flatten and reduce to the desired dimension
-        modules_encoder.append(('Flatten', nn.Flatten()))
-        modules_encoder.append(
-            ('Linear',
-             nn.Linear(
-                 self.num_features*self.z_dim_h*self.z_dim_w*self.z_dim_d,
-                 self.num_representation_features)
-             ))
-        self.encoder = nn.Sequential(OrderedDict(modules_encoder))
+        self.decoder = nn.Sequential(OrderedDict(modules))
 
     def forward(self, x):
-        out = self.encoder(x)
-        return out.squeeze(dim=1)
+        x = self.fc(x)
+        x = x.view(-1, self.init_channels, self.init_d, self.init_h, self.init_w)
+        x = self.decoder(x)
+
+        # Resize if needed due to rounding
+        if x.shape[2:] != self.output_shape[1:]:
+            x = F.interpolate(x, size=self.output_shape[1:], mode='trilinear', align_corners=False)
+
+        return x
