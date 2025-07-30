@@ -3,7 +3,8 @@
 import os
 from omegaconf import OmegaConf
 from dataloader.dataloader import DataModule_Learning
-from model.toy_model import ToyDecoderModel
+#from model.toy_model import ToyDecoderModel
+from model.convnet import DecoderNet
 from utils.train_utils import train_model
 
 def main():
@@ -27,8 +28,8 @@ def main():
 
     output_shape = train_loader.dataset[0][1].shape  # (C, D, H, W)
     print("output_shape:", output_shape)
-    
-    model = ToyDecoderModel(latent_dim=latent_dim, output_shape=output_shape)
+
+    model = DecoderNet(latent_dim=latent_dim, output_shape=output_shape)
 
     # Run training with TensorBoard logging
     log_dir = os.path.join("runs", decoder_cfg["experiment_name"])
