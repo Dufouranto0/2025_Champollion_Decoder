@@ -18,10 +18,10 @@ class ToyDecoderModel(nn.Module):
 
         # Decoder network
         self.decoder = nn.Sequential(
-            nn.ConvTranspose3d(16, 32, kernel_size=3, stride=(2, 2, 2), padding=1, output_padding=(1, 0, 0)),
+            nn.ConvTranspose3d(16, 32, kernel_size=3, stride=2, padding=1, output_padding=(1, 0, 0)),
             nn.ReLU(inplace=True),
 
-            nn.ConvTranspose3d(32, 32, kernel_size=3, stride=(2, 2, 2), padding=1, output_padding=(1, 1, 1)),
+            nn.ConvTranspose3d(32, 32, kernel_size=3, stride=2, padding=1, output_padding=(1, 1, 1)),
             nn.ReLU(inplace=True),
 
             nn.ConvTranspose3d(32, 16, kernel_size=3, stride=1, padding=1),
