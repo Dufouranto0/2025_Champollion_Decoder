@@ -36,7 +36,7 @@ def main():
     os.makedirs(log_dir, exist_ok=True)
 
     train_model(model, train_loader, val_loader,
-                num_epochs=decoder_cfg.get("epochs", 10),
+                num_epochs=decoder_cfg.get("epochs", 80),
                 lr=decoder_cfg.get("lr", 1e-3),
                 log_dir=log_dir)
 
