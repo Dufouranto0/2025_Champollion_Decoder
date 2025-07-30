@@ -8,11 +8,11 @@ val_test_csv: ukb40_random_embeddings/val_embeddings.csv
 output_dir: /volatile/ad279118/2025_Champollion_Decoder/deep_learning/evaluation
 
 # Model / training parameters
-experiment_name: "toy_decoder_test"
+experiment_name: "0_test"
 num_cpu_workers: 10
 batch_size: 32
 learning_rate: 0.001
-num_epochs: 20
+num_epochs: 80
 dropout: 0.05
 
 # Decoder-specific options
