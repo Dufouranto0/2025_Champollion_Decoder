@@ -115,19 +115,27 @@ class DecoderNet(pl.LightningModule):
         # Upsampling path
         modules = []
         in_channels = self.init_channels
-        for i, out_channels in enumerate(filters[1:] + [c]):
+        for i in range(3):  # 3 blocks for depth
+            out_channels = filters[i] if i < len(filters) else filters[-1]
+
             modules.append((
                 f"deconv{i}",
                 nn.ConvTranspose3d(
                     in_channels, out_channels,
-                    kernel_size=4, stride=2, padding=1
+                    kernel_size=4, stride=2, padding=1  # doubles the spatial size
                 )
             ))
-            if i < len(filters) - 1:
-                modules.append((f"bn{i}", nn.BatchNorm3d(out_channels)))
-                modules.append((f"relu{i}", nn.ReLU()))
-                modules.append((f"dropout{i}", nn.Dropout3d(p=drop_rate)))
+            modules.append((f"bn{i}", nn.BatchNorm3d(out_channels)))
+            modules.append((f"lrelu{i}", nn.LeakyReLU(inplace=True)))
+            modules.append((f"dropout{i}", nn.Dropout3d(p=drop_rate)))
+
             in_channels = out_channels
+
+        # Final conv to match desired output channels (e.g., 1)
+        modules.append((
+            "final_conv",
+            nn.Conv3d(in_channels, c, kernel_size=3, stride=1, padding=1)
+        ))
 
         self.decoder = nn.Sequential(OrderedDict(modules))
 
