@@ -9,32 +9,6 @@ from torch.utils.data import Dataset, DataLoader
 from pytorch_lightning import LightningDataModule
 from omegaconf import OmegaConf
 
-"""
-torch.random.manual_seed(0)
-
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-# Load decoder config
-decoder_cfg = OmegaConf.load("../configs/config.yaml")
-
-# Load encoder's training config
-encoder_config_path = os.path.join(
-    decoder_cfg.model_to_decode_path,
-    ".hydra",
-    "config.yaml"
-)
-encoder_cfg = OmegaConf.load(encoder_config_path)
-
-# Override dataset_folder which conains a mistake
-encoder_cfg["dataset_folder"] = decoder_cfg["dataset_folder"]
-
-# Only resolve the dataset part to avoid errors in unrelated keys
-region = list(encoder_cfg.dataset.keys())[0]
-print("Region:", region)
-
-dataset_info = OmegaConf.to_container(encoder_cfg.dataset[region], resolve=True)
-"""
-
 class LatentTargetDataset(Dataset):
     """
     PyTorch Dataset for loading latent vectors and corresponding target volumes.
