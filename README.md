@@ -1,7 +1,7 @@
 # Champollion-Decoder
 
-python -m venv decoder_env
+python -m venv decodervenv
 
-source decoder_env/bin/activate
+source decodervenv/bin/activate
 
 pip install -r requirements.txt
