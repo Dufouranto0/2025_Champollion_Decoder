@@ -14,6 +14,7 @@ def main():
     encoder_cfg["dataset_folder"] = decoder_cfg["dataset_folder"]
     region = list(encoder_cfg.dataset.keys())[0]
     dataset_info = OmegaConf.to_container(encoder_cfg.dataset[region], resolve=True)
+    filters = encoder_cfg["filters"][::-1]
 
     # Setup data
     dm = DataModule_Learning(decoder_cfg, dataset_info)
@@ -23,21 +24,24 @@ def main():
     val_loader = dm.val_dataloader()
 
     # Init model
+    print()
+
     latent_dim = train_loader.dataset[0][0].shape[0]
-    print("latent_dim:", latent_dim)
+    print("latent_dim:", latent_dim, '\n')
 
     output_shape = train_loader.dataset[0][1].shape  # (C, D, H, W)
-    print("output_shape:", output_shape)
+    print("output_shape:", output_shape, '\n')
 
     model = DecoderNet(latent_dim=latent_dim, output_shape=output_shape)
+    #model = ToyDecoderModel(latent_dim=latent_dim, output_shape=output_shape)
 
     # Run training with TensorBoard logging
     log_dir = os.path.join("runs", decoder_cfg["experiment_name"])
     os.makedirs(log_dir, exist_ok=True)
 
     train_model(model, train_loader, val_loader,
-                num_epochs=decoder_cfg.get("epochs", 80),
-                lr=decoder_cfg.get("lr", 1e-3),
+                num_epochs=decoder_cfg.get("epochs", 20),
+                lr=decoder_cfg.get("lr", 5e-4),
                 log_dir=log_dir)
 
 if __name__ == "__main__":
