@@ -13,29 +13,39 @@ class ToyDecoderModel(nn.Module):
         self.D, self.H, self.W = output_shape[1:]  # 16, 37, 37
 
         # Project latent to small 3D feature volume
-        self.fc1 = nn.Linear(latent_dim, 256)
-        self.fc2 = nn.Linear(256, 16 * 2 * 5 * 5)  # Output: (B, 16, 2, 5, 5)
+        self.fc1 = nn.Linear(latent_dim, 128 * 3 * 5 * 6)
 
         # Decoder network
         self.decoder = nn.Sequential(
-            nn.ConvTranspose3d(16, 32, kernel_size=3, stride=2, padding=1, output_padding=(1, 0, 0)),
+            nn.ConvTranspose3d(128, 128, kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True),
 
-            nn.ConvTranspose3d(32, 32, kernel_size=3, stride=2, padding=1, output_padding=(1, 1, 1)),
+            nn.ConvTranspose3d(128, 64, kernel_size=3, stride=2, padding=1),
             nn.ReLU(inplace=True),
 
-            nn.ConvTranspose3d(32, 16, kernel_size=3, stride=1, padding=1),
+            nn.ConvTranspose3d(64, 64, kernel_size=3, stride=1, padding=1),
             nn.ReLU(inplace=True),
 
-            nn.Conv3d(16, output_shape[0], kernel_size=3, padding=1),
+            nn.ConvTranspose3d(64, 32, kernel_size=3, stride=2, padding=1),
+            nn.ReLU(inplace=True),
+
+            nn.ConvTranspose3d(32, 32, kernel_size=3, stride=1, padding=0),
+            nn.ReLU(inplace=True),
+
+            nn.ConvTranspose3d(32, output_shape[0], kernel_size=3, stride=2, padding=0),
+            nn.ReLU(inplace=True),
+
+            nn.Conv3d(output_shape[0], output_shape[0], kernel_size=3, padding=1),
         )
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = x.view(-1, 16, 2, 5, 5)  # reshape to 3D volume
+        x = x.view(-1, 128, 3, 5, 6)  # reshape to 3D volume
         x = self.decoder(x)
 
-        # Resize to match exact output shape (e.g., 1×16×37×37)
-        x = F.interpolate(x, size=self.output_shape[1:], mode='trilinear', align_corners=False)
+        if x.shape[2:] != self.output_shape[1:]:
+            print('Output shape are different:', x.shape[2:], 'VS', self.output_shape[1:])
+            print('Trilinear interpolation is used then')
+            # Resize to match exact output shape (e.g., 1×16×37×37)
+            x = F.interpolate(x, size=self.output_shape[1:], mode='trilinear', align_corners=False)
         return x
