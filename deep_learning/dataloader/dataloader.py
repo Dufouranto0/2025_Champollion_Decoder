@@ -1,13 +1,12 @@
 # dataloader.py
 
 import os
-from typing import List, Optional
+from typing import List
 import pandas as pd
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 from pytorch_lightning import LightningDataModule
-from omegaconf import OmegaConf
 
 class LatentTargetDataset(Dataset):
     """
@@ -51,7 +50,7 @@ class LatentTargetDataset(Dataset):
 
     def __getitem__(self, idx):
         latent_vector = torch.tensor(self.latents.iloc[idx].values, dtype=torch.float32)
-        target_volume = torch.tensor(self.targets[self.indices[idx]], dtype=torch.float32).permute(3, 0, 1, 2)
+        target_volume = torch.tensor(self.targets[self.indices[idx]], dtype=torch.float32).permute(3, 2, 1, 0)
         return latent_vector, target_volume
 
 class DataModule_Learning(LightningDataModule):
@@ -67,7 +66,7 @@ class DataModule_Learning(LightningDataModule):
         self.config = config
         self.dataset_info = dataset_info
 
-    def setup(self, stage=None):
+    def setup(self):
 
         # Full paths to CSV and NPY files
         train_path = os.path.join(self.config["model_to_decode_path"], self.config["train_csv"])
