@@ -2,22 +2,32 @@
 
 import torch
 import torch.nn as nn
-from tqdm import tqdm
-
-import torch
-import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import os
 
-def train_model(model, train_loader, val_loader, num_epochs=10, lr=1e-3, log_dir="runs/", device=None):
+
+def train_model(model, train_loader, val_loader, 
+                num_epochs=10, loss_name="bce", lr=1e-3, 
+                log_dir="runs/", device=None, save_last=True,
+                last_model_name="last_model.pt"):
+    
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     print("device:", device)
     model.to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    criterion = nn.MSELoss()
+    print("Loss name:", loss_name, '\n')
+
+    if loss_name=="mse":
+        criterion = nn.MSELoss()
+    elif loss_name=="bce":
+        criterion = nn.BCEWithLogitsLoss()
+    elif loss_name == "ce":
+        criterion = nn.CrossEntropyLoss()
+    else:
+        raise ValueError(f"Unsupported loss function: {loss_name}")
 
     writer = SummaryWriter(log_dir=log_dir)
 
@@ -28,7 +38,6 @@ def train_model(model, train_loader, val_loader, num_epochs=10, lr=1e-3, log_dir
         for latents, targets in tqdm(train_loader, desc=f"[Epoch {epoch+1}/{num_epochs}]"):
             latents, targets = latents.to(device), targets.to(device)
 
-            optimizer.zero_grad()
             outputs = model(latents)
             loss = criterion(outputs, targets)
             loss.backward()
@@ -45,6 +54,11 @@ def train_model(model, train_loader, val_loader, num_epochs=10, lr=1e-3, log_dir
         writer.add_scalar("Loss/Val", val_loss, epoch)
 
     writer.close()
+
+    if save_last:
+        last_model_path = os.path.join(log_dir, last_model_name)
+        torch.save(model.state_dict(), last_model_path)
+        print(f"Saved last model to: {last_model_path}")
 
 def evaluate_model(model, val_loader, criterion, device):
     model.eval()

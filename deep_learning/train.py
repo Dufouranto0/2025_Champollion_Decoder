@@ -6,10 +6,17 @@ from dataloader.dataloader import DataModule_Learning
 #from model.toy_model import ToyDecoderModel
 from model.convnet import DecoderNet
 from utils.train_utils import train_model
+from reconstruction.save_npy import save_npy
 
 def main():
+
     # Load configs
-    decoder_cfg = OmegaConf.load("/volatile/ad279118/2025_Champollion_Decoder/deep_learning/configs/config.yaml")
+    decoder_cfg = OmegaConf.load("configs/config.yaml")
+    
+    assert os.path.exists(os.path.join(decoder_cfg.model_to_decode_path, \
+                                              ".hydra", "config.yaml")), \
+                        "Missing Hydra config file in model_to_decode_path"
+
     encoder_cfg = OmegaConf.load(os.path.join(decoder_cfg.model_to_decode_path, ".hydra", "config.yaml"))
     encoder_cfg["dataset_folder"] = decoder_cfg["dataset_folder"]
     region = list(encoder_cfg.dataset.keys())[0]
@@ -25,14 +32,22 @@ def main():
 
     # Init model
     print()
+    print(region, '\n')
 
     latent_dim = train_loader.dataset[0][0].shape[0]
     print("latent_dim:", latent_dim, '\n')
 
-    output_shape = train_loader.dataset[0][1].shape  # (C, D, H, W)
+    full_target = train_loader.dataset[0][1]
+    if decoder_cfg["loss"] == "ce":
+        # Target is (D, H, W) → output shape should be (C=2, D, H, W)
+        output_shape = (2,) + full_target.shape
+    else:
+        # Target is already (C, D, H, W)
+        output_shape = full_target.shape
     print("output_shape:", output_shape, '\n')
 
-    model = DecoderNet(latent_dim=latent_dim, output_shape=output_shape)
+    model = DecoderNet(latent_dim=latent_dim, output_shape=output_shape, \
+                       filters=filters, loss_name=decoder_cfg["loss"])
     #model = ToyDecoderModel(latent_dim=latent_dim, output_shape=output_shape)
 
     # Run training with TensorBoard logging
@@ -40,9 +55,16 @@ def main():
     os.makedirs(log_dir, exist_ok=True)
 
     train_model(model, train_loader, val_loader,
-                num_epochs=decoder_cfg.get("num_epochs", 20),
-                lr=decoder_cfg.get("learning_rate", 5e-4),
-                log_dir=log_dir)
+                num_epochs=decoder_cfg["num_epochs"],
+                lr=decoder_cfg["learning_rate"],
+                loss_name=decoder_cfg["loss"],
+                log_dir=log_dir,
+                save_last=False,
+                last_model_name="last_model.pt")
+
+
+    recon_dir = os.path.join(log_dir, "reconstructions_epoch2")
+    save_npy(model, val_loader, device="cuda", out_path=recon_dir, save_inputs=True, loss_name=decoder_cfg["loss"])
 
 if __name__ == "__main__":
     main()
