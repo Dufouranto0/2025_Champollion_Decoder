@@ -19,9 +19,10 @@ class LatentTargetDataset(Dataset):
         subject_list (List[str]): List of subject IDs to include in this dataset.
     """
     def __init__(self, latent_csv_path: str, target_npy_path: str,
-                 subjects_all_path: str, subject_list: List[str]):
+                 subjects_all_path: str, subject_list: List[str], loss_name: str):
 
         self.subject_list = subject_list
+        self.loss_name = loss_name
 
         # Load latent vectors
         latent_df = pd.read_csv(latent_csv_path)
@@ -41,16 +42,21 @@ class LatentTargetDataset(Dataset):
         # Load target volumes
         self.targets = np.load(target_npy_path)
 
-        # Safety check
         assert len(self.latents) == len(self.indices), \
             "Mismatch between latent vectors and volume indices"
 
     def __len__(self):
         return len(self.latents)
-
+    
     def __getitem__(self, idx):
-        latent_vector = torch.tensor(self.latents.iloc[idx].values, dtype=torch.float32)
-        target_volume = torch.tensor(self.targets[self.indices[idx]], dtype=torch.float32).permute(3, 2, 1, 0)
+        latent_vector = torch.tensor(self.latents.iloc[idx].values, dtype=torch.float32)   
+        target_volume = self.targets[self.indices[idx]]  
+        target_volume = torch.tensor(target_volume, dtype=torch.float32).permute(3, 2, 1, 0)
+        target_volume = (target_volume != 0).float() # Binarize: 1 if non-zero, else 0
+
+        if self.loss_name == "ce":
+            target_volume = target_volume.squeeze(dim=0).long()
+
         return latent_vector, target_volume
 
 class DataModule_Learning(LightningDataModule):
@@ -89,19 +95,22 @@ class DataModule_Learning(LightningDataModule):
             latent_csv_path=train_path,
             target_npy_path=target_npy_path,
             subjects_all_path=subjects_all,
-            subject_list=train_subjects
+            subject_list=train_subjects,
+            loss_name=self.config["loss"]
         )
         self.dataset_val = LatentTargetDataset(
             latent_csv_path=val_test_path,
             target_npy_path=target_npy_path,
             subjects_all_path=subjects_all,
-            subject_list=val_subjects
+            subject_list=val_subjects,
+            loss_name=self.config["loss"]
         )
         self.dataset_test = LatentTargetDataset(
             latent_csv_path=val_test_path,
             target_npy_path=target_npy_path,
             subjects_all_path=subjects_all,
-            subject_list=test_subjects
+            subject_list=test_subjects,
+            loss_name=self.config["loss"]
         )
 
     def train_dataloader(self):
