@@ -129,7 +129,7 @@ class DecoderNet(pl.LightningModule):
    
 
         self.fc = nn.Sequential(OrderedDict([
-            ("fc1", nn.Linear(latent_dim, self.init_channels*5*5*5)),
+            ("fc1", nn.Linear(latent_dim, self.init_channels*5*5*3)),
             ("relu1", nn.ReLU()),
         ]))
 
@@ -139,7 +139,7 @@ class DecoderNet(pl.LightningModule):
             out_channels = filters[i]
 
             modules.append((
-                f"deconv{i}",
+                f"ConvTranspose3d{i}",
                 nn.ConvTranspose3d(
                     in_channels, out_channels,
                     kernel_size=3, stride=2, padding=1  # doubles the spatial size
@@ -152,8 +152,30 @@ class DecoderNet(pl.LightningModule):
             in_channels = out_channels
 
             modules.append((
-                f"deconv{i}_2",
-                nn.Conv3d(
+                f"ConvTranspose3d{i}_2",
+                nn.ConvTranspose3d(
+                    in_channels, out_channels,
+                    kernel_size=3, stride=1, padding=1  
+                )
+            ))
+            modules.append((f"bn{i}", nn.BatchNorm3d(out_channels)))
+            modules.append((f"lrelu{i}", nn.LeakyReLU(inplace=True)))
+            modules.append((f"dropout{i}", nn.Dropout3d(p=drop_rate)))
+
+            modules.append((
+                f"ConvTranspose3d{i}_3",
+                nn.ConvTranspose3d(
+                    in_channels, out_channels,
+                    kernel_size=3, stride=1, padding=1  
+                )
+            ))
+            modules.append((f"bn{i}", nn.BatchNorm3d(out_channels)))
+            modules.append((f"lrelu{i}", nn.LeakyReLU(inplace=True)))
+            modules.append((f"dropout{i}", nn.Dropout3d(p=drop_rate)))
+
+            modules.append((
+                f"ConvTranspose3d{i}_4",
+                nn.ConvTranspose3d(
                     in_channels, out_channels,
                     kernel_size=3, stride=1, padding=1  
                 )
@@ -171,7 +193,7 @@ class DecoderNet(pl.LightningModule):
 
     def forward(self, x):
         x = self.fc(x)
-        x = x.view(-1, self.init_channels, 5, 5, 5)
+        x = x.view(-1, self.init_channels, 5, 5, 3)
         x = self.decoder(x)
 
         # Resize if needed due to rounding

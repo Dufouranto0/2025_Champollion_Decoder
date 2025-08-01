@@ -40,8 +40,8 @@ def main():
     os.makedirs(log_dir, exist_ok=True)
 
     train_model(model, train_loader, val_loader,
-                num_epochs=decoder_cfg.get("epochs", 20),
-                lr=decoder_cfg.get("lr", 5e-4),
+                num_epochs=decoder_cfg.get("num_epochs", 20),
+                lr=decoder_cfg.get("learning_rate", 5e-4),
                 log_dir=log_dir)
 
 if __name__ == "__main__":

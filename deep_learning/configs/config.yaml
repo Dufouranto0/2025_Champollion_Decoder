@@ -11,7 +11,7 @@ output_dir: /volatile/ad279118/2025_Champollion_Decoder/deep_learning/evaluation
 experiment_name: "3_test"
 num_cpu_workers: 10
 batch_size: 32
-learning_rate: 0.001
+learning_rate: 2e-4
 num_epochs: 20
 dropout: 0.05
 
