@@ -1,83 +1,50 @@
-from collections import OrderedDict
-
-import pytorch_lightning as pl
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import pytorch_lightning as pl
 from torch import Tensor
-import torch
+from collections import OrderedDict
 
+# --------- Utility functions ---------
+def ComputeOutputDim(dimension, depth):
+    """Compute the resolution after depth levels of stride-2 downsampling"""
+    if depth == 0:
+        return dimension
+    else:
+        return ComputeOutputDim(dimension // 2 + dimension % 2, depth - 1)
+
+def compute_decoder_shapes(output_shape, depth):
+    """
+    Given the final output shape (D, H, W), compute intermediate shapes
+    matching each encoder depth level.
+    """
+    shapes = [output_shape]
+    for _ in range(depth):
+        d, h, w = shapes[0]
+        shapes.insert(0, (
+            ComputeOutputDim(d, 1),
+            ComputeOutputDim(h, 1),
+            ComputeOutputDim(w, 1)
+        ))
+    return shapes
+
+# --------- Dropout always ---------
 class _DropoutNd(nn.Module):
-    __constants__ = ['p', 'inplace']
-    p: float
-    inplace: bool
-
-    def __init__(self, p: float = 0.05, inplace: bool = False) -> None:
-        super(_DropoutNd, self).__init__()
-        if p < 0 or p > 1:
-            raise ValueError("dropout probability has to be between 0 and 1, "
-                             "but got {}".format(p))
+    def __init__(self, p=0.05, inplace=False):
+        super().__init__()
         self.p = p
         self.inplace = inplace
 
-    def extra_repr(self) -> str:
-        return 'p={}, inplace={}'.format(self.p, self.inplace)
-
-
 class Dropout3d_always(_DropoutNd):
-    r"""Randomly zero out entire channels (a channel is a 3D feature map,
-    e.g., the :math:`j`-th channel of the :math:`i`-th sample in the
-    batched input is a 3D tensor :math:`\text{input}[i, j]`).
-    Each channel will be zeroed out independently on every forward call with
-    probability :attr:`p` using samples from a Bernoulli distribution.
+    def forward(self, x: Tensor) -> Tensor:
+        return F.dropout3d(x, self.p, training=True, inplace=self.inplace)
 
-    Alwyas applies dropout also during evaluation
-
-    As described in the paper
-    `Efficient Object Localization Using Convolutional Networks`_ ,
-    if adjacent pixels within feature maps are strongly correlated
-    (as is normally the case in early convolution layers) then i.i.d. dropout
-    will not regularize the activations and will otherwise just result
-    in an effective learning rate decrease.
-
-    In this case, :func:`nn.Dropout3d` will help promote independence between
-    feature maps and should be used instead.
-
-    Args:
-        p (float, optional): probability of an element to be zeroed.
-        inplace (bool, optional): If set to ``True``, will do this operation
-            in-place
-
-    Shape:
-        - Input: :math:`(N, C, D, H, W)` or :math:`(C, D, H, W)`.
-        - Output: :math:`(N, C, D, H, W)` or :math:`(C, D, H, W)`
-                  (same shape as input).
-
-    Examples::
-
-        >>> m = nn.Dropout3d(p=0.2)
-        >>> input = torch.randn(20, 16, 4, 32, 32)
-        >>> output = m(input)
-
-    .. _Efficient Object Localization Using Convolutional Networks:
-       https://arxiv.org/abs/1411.4280
-    """
-
-    def forward(self, input: Tensor) -> Tensor:
-        return F.dropout3d(input, self.p, True, self.inplace)
-    
-
+# --------- ConvTranspose3d that matches exact output shape ---------
 class ConvTranspose3dSame(nn.ConvTranspose3d):
     def forward(self, x: torch.Tensor, output_size=None) -> torch.Tensor:
-        # Compute output size if not provided
         if output_size is None:
-            # Default PyTorch logic, may not match encoder shape exactly
             return super().forward(x)
 
-        # Compute required output_padding
-        # Based on the ConvTranspose3d formula:
-        # out = (in - 1) * stride - 2 * padding + kernel + output_padding
-
-        # Calculate expected output shape
         in_shape = x.shape[-3:]
         stride = self.stride
         kernel = self.kernel_size
@@ -92,7 +59,6 @@ class ConvTranspose3dSame(nn.ConvTranspose3d):
             for i in range(3)
         ]
 
-        # Compute needed output_padding
         output_padding = [
             output_size[i] - expected_output_shape[i]
             for i in range(3)
@@ -109,97 +75,72 @@ class ConvTranspose3dSame(nn.ConvTranspose3d):
             groups=self.groups
         )
 
-
+# --------- Main Decoder ---------
 class DecoderNet(pl.LightningModule):
-    r"""TO DO
-    """
-
     def __init__(self,
                  latent_dim=32,
-                 output_shape=(1, 64, 64, 64),
-                 filters=[128,64,32], 
-                 drop_rate=0.05
-                 ):
+                 output_shape=(1, 37, 37, 16),
+                 filters=[128, 64, 32],
+                 drop_rate=0.05,
+                 loss_name="ce"):
 
         super().__init__()
-        
-        self.output_shape = output_shape  # (C, D, H, W)
-        c = output_shape[0]
-        self.init_channels = filters[0]
-   
 
+        self.output_shape = output_shape
+        self.loss_name = loss_name.lower()
+        self.init_channels = filters[0]
+
+        # Compute spatial shapes from deepest to output
+        self.spatial_shapes = compute_decoder_shapes(output_shape[1:], len(filters))
+
+        # FC layer projects latent to spatial volume
+        init_shape = self.spatial_shapes[0]
         self.fc = nn.Sequential(OrderedDict([
-            ("fc1", nn.Linear(latent_dim, self.init_channels*5*5*3)),
-            ("relu1", nn.ReLU()),
+            ("fc1", nn.Linear(latent_dim, self.init_channels * init_shape[0] * init_shape[1] * init_shape[2])),
+            ("relu1", nn.ReLU())
         ]))
 
-        modules = []
+        self.blocks = nn.ModuleList()
+        self.target_shapes = []
+
         in_channels = self.init_channels
-        for i in range(len(filters)): 
-            out_channels = filters[i]
+        for i, out_channels in enumerate(filters):
+            target_shape = self.spatial_shapes[i + 1]
 
-            modules.append((
-                f"ConvTranspose3d{i}",
-                nn.ConvTranspose3d(
-                    in_channels, out_channels,
-                    kernel_size=3, stride=2, padding=1  # doubles the spatial size
-                )
-            ))
-            modules.append((f"bn{i}", nn.BatchNorm3d(out_channels)))
-            modules.append((f"lrelu{i}", nn.LeakyReLU(inplace=True)))
-            modules.append((f"dropout{i}", nn.Dropout3d(p=drop_rate)))
+            block = nn.ModuleList([
+                ConvTranspose3dSame(in_channels, out_channels, kernel_size=3, stride=2, padding=1),
+                nn.BatchNorm3d(out_channels),
+                nn.LeakyReLU(inplace=True),
+                Dropout3d_always(p=drop_rate),
 
+                nn.ConvTranspose3d(out_channels, out_channels, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm3d(out_channels),
+                nn.LeakyReLU(inplace=True),
+                Dropout3d_always(p=drop_rate),
+            ])
+            self.blocks.append(block)
+            self.target_shapes.append(target_shape)
             in_channels = out_channels
 
-            modules.append((
-                f"ConvTranspose3d{i}_2",
-                nn.ConvTranspose3d(
-                    in_channels, out_channels,
-                    kernel_size=3, stride=1, padding=1  
-                )
-            ))
-            modules.append((f"bn{i}", nn.BatchNorm3d(out_channels)))
-            modules.append((f"lrelu{i}", nn.LeakyReLU(inplace=True)))
-            modules.append((f"dropout{i}", nn.Dropout3d(p=drop_rate)))
-
-            modules.append((
-                f"ConvTranspose3d{i}_3",
-                nn.ConvTranspose3d(
-                    in_channels, out_channels,
-                    kernel_size=3, stride=1, padding=1  
-                )
-            ))
-            modules.append((f"bn{i}", nn.BatchNorm3d(out_channels)))
-            modules.append((f"lrelu{i}", nn.LeakyReLU(inplace=True)))
-            modules.append((f"dropout{i}", nn.Dropout3d(p=drop_rate)))
-
-            modules.append((
-                f"ConvTranspose3d{i}_4",
-                nn.ConvTranspose3d(
-                    in_channels, out_channels,
-                    kernel_size=3, stride=1, padding=1  
-                )
-            ))
-            modules.append((f"bn{i}", nn.BatchNorm3d(out_channels)))
-            modules.append((f"lrelu{i}", nn.LeakyReLU(inplace=True)))
-            modules.append((f"dropout{i}", nn.Dropout3d(p=drop_rate)))
-
-        modules.append((
-            "final_conv",
-            nn.Conv3d(in_channels, c, kernel_size=7, stride=1, padding=1)
-        ))
-
-        self.decoder = nn.Sequential(OrderedDict(modules))
+        # Final layer adapts to loss type
+        if self.loss_name == "mse":
+            self.final_conv = nn.Conv3d(in_channels, output_shape[0], kernel_size=3, stride=1, padding=1)
+        elif self.loss_name == "bce":
+            self.final_conv = nn.Conv3d(in_channels, 1, kernel_size=1, stride=1)
+        elif self.loss_name == "ce":
+            self.final_conv = nn.Conv3d(in_channels, 2, kernel_size=1, stride=1)
+        else:
+            raise ValueError(f"Unsupported loss type: {loss_name}")
 
     def forward(self, x):
+        d, h, w = self.spatial_shapes[0]
         x = self.fc(x)
-        x = x.view(-1, self.init_channels, 5, 5, 3)
-        x = self.decoder(x)
+        x = x.view(-1, self.init_channels, d, h, w)
 
-        # Resize if needed due to rounding
-        if x.shape[2:] != self.output_shape[1:]:
-            #print('Output shape are different:', x.shape[2:], 'VS', self.output_shape[1:])
-            #print('Trilinear interpolation is used then')
-            x = F.interpolate(x, size=self.output_shape[1:], mode='trilinear', align_corners=False)
+        for block, target_shape in zip(self.blocks, self.target_shapes):
+            x = block[0](x, output_size=target_shape)
+            for layer in block[1:]:
+                x = layer(x)
 
-        return x
+        return self.final_conv(x)
+
