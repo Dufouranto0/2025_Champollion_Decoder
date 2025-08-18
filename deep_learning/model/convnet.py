@@ -95,9 +95,15 @@ class DecoderNet(pl.LightningModule):
 
         # FC layer projects latent to spatial volume
         init_shape = self.spatial_shapes[0]
-        self.fc = nn.Sequential(OrderedDict([
-            ("fc1", nn.Linear(latent_dim, self.init_channels * init_shape[0] * init_shape[1] * init_shape[2])),
-            ("relu1", nn.ReLU())
+        self.fc1 = nn.Sequential(OrderedDict([
+            ("fc1", nn.Linear(latent_dim, 
+                              self.init_channels * init_shape[0] * init_shape[1] * init_shape[2])),
+            ("relu", nn.ReLU())
+        ]))
+        self.fc2 = nn.Sequential(OrderedDict([
+            ("fc2", nn.Linear(self.init_channels * init_shape[0] * init_shape[1] * init_shape[2], 
+                              self.init_channels * init_shape[0] * init_shape[1] * init_shape[2])),
+            ("relu", nn.ReLU())
         ]))
 
         self.blocks = nn.ModuleList()
@@ -134,7 +140,8 @@ class DecoderNet(pl.LightningModule):
 
     def forward(self, x):
         d, h, w = self.spatial_shapes[0]
-        x = self.fc(x)
+        x = self.fc1(x)
+        x = self.fc2(x)
         x = x.view(-1, self.init_channels, d, h, w)
 
         for block, target_shape in zip(self.blocks, self.target_shapes):
