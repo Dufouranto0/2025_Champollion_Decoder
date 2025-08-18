@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 import torch
 import os
 
@@ -22,6 +23,7 @@ def save_npy(model, dataloader, device, out_path, save_inputs=False, loss_name='
                 # Get predicted volume as binary float32 (0.0 / 1.0)
                 if loss_name == 'mse':
                     pred = outputs[b]
+                    print(pred.shape)
                     pred = (pred > 0.5).float()
                     output_vol = pred.cpu().numpy().astype(np.float32)[0]  # remove channel dim
                 elif loss_name == 'bce':

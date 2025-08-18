@@ -1,5 +1,4 @@
 import anatomist.api as ana
-from soma.qt_gui.qtThread import QtThreadCall
 from soma.qt_gui.qt_backend import Qt
 from soma import aims
 import os
