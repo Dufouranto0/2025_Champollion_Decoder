@@ -1,3 +1,11 @@
+"""
+python3 reconstruction/visu.py \
+  -p runs/39_STi-STs-STpol_left_ce_0.0005/reconstructions_epoch10 \
+  -l ce \
+  -s sub-1176340_input.nii.gz,sub-1160982_input.nii.gz,sub-1129348_input.nii.gz,sub-1151252_input.nii.gz
+"""
+
+
 import anatomist.api as ana
 from soma.qt_gui.qt_backend import Qt
 from soma import aims
@@ -22,18 +30,23 @@ def build_gradient(pal):
                                 :3][:, ::-1]  # Convert BGRA to RGBA
     pal.update()
 
-def plot_ana(recon_dir, n_subjects_to_display):
+def plot_ana(recon_dir, n_subjects_to_display, loss_name, listsub):
 
     referential1 = a.createReferential()
 
-    # Find sub-XXXX_input.nii.gz and match with output
-    input_files = sorted(glob.glob(os.path.join(recon_dir, "sub-*_input.nii.gz")))
+    if listsub:
+        input_files = [os.path.join(recon_dir, sub) for sub in listsub]
 
-    # Limit to N subjects
-    numbers = np.random.choice(len(input_files) + 1, size=n_subjects_to_display, replace=False)
-    input_files = [input_files[i] for i in numbers]
-    print("Input files:")
-    print([os.path.basename(file) for file in input_files])
+    else:
+        print("No list of subjects given in argument, take 4 random subjects.")
+        # Find sub-XXXX_input.nii.gz 
+        input_files = glob.glob(os.path.join(recon_dir, "sub-*_input.nii.gz"))
+
+        # Limit to N subjects
+        numbers = np.random.choice(len(input_files) + 1, size=n_subjects_to_display, replace=False)
+        input_files = [input_files[i] for i in numbers]
+        print("Input files:")
+        print([os.path.basename(file) for file in input_files])
 
     for i, input_path in enumerate(input_files):
         subject_id = os.path.basename(input_path).split('_input')[0]
@@ -63,10 +76,19 @@ def plot_ana(recon_dir, n_subjects_to_display):
                                                     method='VolumeRenderingFusionMethod')
         # custom palette
         pal = a.createPalette('VR-palette')
-        pal.header()['palette_gradients'] = "1;1#0;1;1;0#0.994872;0#0;0;0.676923;0.444444;1;1"
+        if loss_name in ['bce', 'mse']:
+            pal.header()['palette_gradients'] = "1;1#0;1;1;0#0.994872;0#0;0;0.676923;0.444444;1;1"
+            minVal=0
+            maxVal=0.5
+        elif loss_name == 'ce':
+            pal.header()['palette_gradients'] = "1;1#0;1;0.292308;0.733333;0.510256;0;0.679487;"+\
+            "0.733333#1;0#0;0;0.341026;0.111111;0.507692;0.911111;0.697436;0.111111;1;0"
+            minVal=-1.6
+            maxVal=0.33
+
         build_gradient(pal)
-        dic_windows[f'r_output_{i}'].setPalette('VR-palette', minVal=0,
-                                        maxVal=0.5, absoluteMode=True)
+        dic_windows[f'r_output_{i}'].setPalette('VR-palette', minVal=minVal,
+                                        maxVal=maxVal, absoluteMode=True)
         dic_windows[f'r_output_{i}'].releaseAppRef()
         dic_windows[f'r_output_{i}'].assignReferential(referential1)
         dic_windows[f'w_output_{i}'] = a.createWindow('3D', block=block)
@@ -79,19 +101,30 @@ def main():
     parser = argparse.ArgumentParser(description="Save nii files from npy files.")
     parser.add_argument('-p', '--path', type=str, help="Base folder path to the reconstructions.")
     parser.add_argument('-n', '--nsubjects', type=int, default=4, help="Number of subjects to plot.")
+    parser.add_argument('-l', '--lossname', type=str, default='bce', help="Name of the loss used for the decoder.")
+    parser.add_argument('-s', '--subjects', type=str, default=None, help="List of subjects you want to plot.")
+
+
     args = parser.parse_args()
 
-    if not args.path:
+    recon_path = args.path
+
+    if not recon_path:
         print("No path provided. Please specify with -p.")
         return
 
-    plot_ana(args.path, args.nsubjects)
+    subjects = args.subjects.split(',')
+
+    if os.path.isdir(recon_path):
+        plot_ana(recon_path, args.nsubjects, args.lossname, subjects)
+    else:
+        raise FileNotFoundError(f"Path {recon_path} not found.")
 
 
 if __name__ == "__main__":
     a = ana.Anatomist()
     nb_columns = 2
-    block = a.createWindowsBlock(nb_columns)  # Create a layout block with 2 columns
+    block = a.createWindowsBlock(nb_columns) 
     dic_windows = {}
 
     main()
