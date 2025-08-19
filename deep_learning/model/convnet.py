@@ -91,18 +91,14 @@ class DecoderNet(pl.LightningModule):
         self.init_channels = filters[0]
 
         # Compute spatial shapes from deepest to output
-        self.spatial_shapes = compute_decoder_shapes(output_shape[1:], len(filters))
+        self.spatial_shapes = compute_decoder_shapes(self.output_shape[1:], len(filters))
 
         # FC layer projects latent to spatial volume
         init_shape = self.spatial_shapes[0]
         self.fc1 = nn.Sequential(OrderedDict([
             ("fc1", nn.Linear(latent_dim, 
                               self.init_channels * init_shape[0] * init_shape[1] * init_shape[2])),
-            ("relu", nn.ReLU())
-        ]))
-        self.fc2 = nn.Sequential(OrderedDict([
-            ("fc2", nn.Linear(self.init_channels * init_shape[0] * init_shape[1] * init_shape[2], 
-                              self.init_channels * init_shape[0] * init_shape[1] * init_shape[2])),
+            ("BN1d", nn.BatchNorm1d(self.init_channels * init_shape[0] * init_shape[1] * init_shape[2])),
             ("relu", nn.ReLU())
         ]))
 
@@ -118,11 +114,13 @@ class DecoderNet(pl.LightningModule):
                 nn.BatchNorm3d(out_channels),
                 nn.LeakyReLU(inplace=True),
                 Dropout3d_always(p=drop_rate),
-
+                
+                # ConvTranspose3d or Conv3d ??
                 nn.ConvTranspose3d(out_channels, out_channels, kernel_size=3, stride=1, padding=1),
                 nn.BatchNorm3d(out_channels),
                 nn.LeakyReLU(inplace=True),
                 Dropout3d_always(p=drop_rate),
+
             ])
             self.blocks.append(block)
             self.target_shapes.append(target_shape)
@@ -130,18 +128,17 @@ class DecoderNet(pl.LightningModule):
 
         # Final layer adapts to loss type
         if self.loss_name == "mse":
-            self.final_conv = nn.Conv3d(in_channels, output_shape[0], kernel_size=3, stride=1, padding=1)
+            self.final_conv = nn.Conv3d(in_channels, self.output_shape[0], kernel_size=3, stride=1, padding=1)
         elif self.loss_name == "bce":
-            self.final_conv = nn.Conv3d(in_channels, 1, kernel_size=1, stride=1)
+            self.final_conv = nn.Conv3d(in_channels, self.output_shape[0], kernel_size=1, stride=1)
         elif self.loss_name == "ce":
-            self.final_conv = nn.Conv3d(in_channels, 2, kernel_size=1, stride=1)
+            self.final_conv = nn.Conv3d(in_channels, self.output_shape[0], kernel_size=1, stride=1)
         else:
             raise ValueError(f"Unsupported loss type: {loss_name}")
 
     def forward(self, x):
         d, h, w = self.spatial_shapes[0]
         x = self.fc1(x)
-        x = self.fc2(x)
         x = x.view(-1, self.init_channels, d, h, w)
 
         for block, target_shape in zip(self.blocks, self.target_shapes):

@@ -1,52 +1,96 @@
+# save_npy.py
+
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import os
 
 
-def save_npy(model, dataloader, device, out_path, save_inputs=False, loss_name='ce'):
+def save_npy(
+    model,
+    dataloader,
+    device,
+    out_path,
+    save_inputs: bool = False,
+    loss_name: str = "ce",
+    max_batches_to_save: int = 2,
+    save_histograms: bool = True,
+):
+    """
+    Save model reconstructions as .npy files and optionally input volumes.
+    Also saves histograms of predicted values (before thresholding).
+
+    Args:
+        model: Trained PyTorch model.
+        dataloader: DataLoader yielding (latent, target, subj_id).
+        device: torch device.
+        out_path (str): Directory to save results.
+        save_inputs (bool): If True, save input volumes as well.
+        loss_name (str): "mse", "bce", or "ce".
+        max_batches_to_save (int): How many batches of outputs to save.
+        save_histograms (bool): Save histograms of continuous predictions.
+    """
     model.eval()
     os.makedirs(out_path, exist_ok=True)
-    limit = 2  # how many batches to save
+    hist_dir = os.path.join(out_path, "histograms")
+    if save_histograms:
+        os.makedirs(hist_dir, exist_ok=True)
 
     with torch.no_grad():
-        for i, (latents, targets) in enumerate(dataloader):
-            if i >= limit:
+        for i, (latents, targets, subj_ids) in enumerate(dataloader):
+            if i >= max_batches_to_save:
                 break
 
             latents, targets = latents.to(device), targets.to(device)
             outputs = model(latents)
 
             for b in range(latents.size(0)):
-                subj_id = f"subject_{i * dataloader.batch_size + b:04d}"
+                subj_id = subj_ids[b]  # real subject ID from dataloader
 
-                # Get predicted volume as binary float32 (0.0 / 1.0)
-                if loss_name == 'mse':
-                    pred = outputs[b]
-                    print(pred.shape)
-                    pred = (pred > 0.5).float()
-                    output_vol = pred.cpu().numpy().astype(np.float32)[0]  # remove channel dim
-                elif loss_name == 'bce':
-                    pred = torch.sigmoid(outputs[b])
-                    pred = (pred > 0.5).float()
-                    output_vol = pred.cpu().numpy().astype(np.float32)[0]
-                elif loss_name == 'ce':
-                    pred = torch.argmax(outputs[b], dim=0).float()
-                    output_vol = pred.cpu().numpy().astype(np.float32)
+                # --------- Predicted volume ---------
+                if loss_name == "mse":
+                    # Continuous model output (no threshold)
+                    raw = outputs[b]                     # shape: (1, D, H, W)
+                    values = raw.cpu().numpy()           
+                    output_vol = values[0].astype(np.float32)
+
+                elif loss_name == "bce":
+                    # Continuous probabilities in [0,1]
+                    raw = torch.sigmoid(outputs[b])      # shape: (1, D, H, W)
+                    values = raw.cpu().numpy()           
+                    output_vol = values[0].astype(np.float32)
+
+                elif loss_name == "ce":
+                    probs = torch.softmax(outputs[b], dim=0)       # (C, D, H, W)
+                    pred = torch.argmax(probs, dim=0).cpu().numpy() # (D, H, W)
+                    output_vol = pred.astype(np.float32)
+
                 else:
                     raise ValueError(f"Unsupported loss function: {loss_name}")
 
-                # Transpose from (D, H, W) to (X, Y, Z) as (Z, Y, X)
+                # Reorder axes: (D, H, W) --> (Z, Y, X)
                 output_vol = output_vol.transpose(2, 1, 0)
 
-                # Save output
+                # Save npy
                 output_path = os.path.join(out_path, f"{subj_id}_output.npy")
                 np.save(output_path, output_vol)
 
-                # Optionally save input/target
+                # --------- Histogram of raw values ---------
+                if save_histograms and loss_name in ["mse", "bce"]:
+                    plt.figure(figsize=(6, 4))
+                    plt.hist(values.ravel(), bins=50, color="steelblue", alpha=0.7)
+                    plt.title(f"Predicted value distribution - {subj_id}")
+                    plt.xlabel("Predicted value (before threshold)")
+                    plt.ylabel("Voxel count")
+                    plt.grid(True, alpha=0.3)
+                    fig_path = os.path.join(hist_dir, f"{subj_id}_hist.png")
+                    plt.savefig(fig_path)
+                    plt.close()
+
+                # --------- Save input/target volume ---------
                 if save_inputs:
                     input_vol = targets[b].cpu().numpy().astype(np.float32)
-                    if input_vol.ndim == 4:
+                    if input_vol.ndim == 4:  # (C, D, H, W)
                         input_vol = input_vol[0]
                     input_vol = input_vol.transpose(2, 1, 0)
                     input_path = os.path.join(out_path, f"{subj_id}_input.npy")
