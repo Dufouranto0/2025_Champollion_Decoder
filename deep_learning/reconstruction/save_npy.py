@@ -61,8 +61,8 @@ def save_npy(
                     output_vol = values[0].astype(np.float32)
 
                 elif loss_name == "ce":
-                    probs = torch.softmax(outputs[b], dim=0)       # (C, D, H, W)
-                    pred = torch.argmax(probs, dim=0).cpu().numpy() # (D, H, W)
+                    probs = outputs[b]       # (C, D, H, W)
+                    pred = probs[1,:,:,:].cpu().numpy() # (1, D, H, W)
                     output_vol = pred.astype(np.float32)
 
                 else:
