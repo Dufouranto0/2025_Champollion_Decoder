@@ -27,7 +27,7 @@ def train_model(
     num_epochs: int = 10,
     lr: float = 1e-3,
     loss_name: str = "bce",
-    log_dir: str = "runs/decoder",
+    log_dir: str = "runs",
     save_best_model: bool = True,
 ):
     """
