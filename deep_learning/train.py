@@ -36,7 +36,7 @@ def save_configs(log_dir, decoder_cfg, encoder_cfg):
     os.makedirs(hydra_dir, exist_ok=True)
 
     # Save the main config
-    OmegaConf.save(config=decoder_cfg, f=os.path.join(hydra_dir, "config.yaml"))
+    OmegaConf.save(config=decoder_cfg, f=os.path.join(hydra_dir, "decoder_config.yaml"))
 
     # Optionally also save the encoder config for traceability
     OmegaConf.save(config=encoder_cfg, f=os.path.join(hydra_dir, "encoder_config.yaml"))
@@ -121,9 +121,9 @@ def main():
     )
 
     # --- Training ---
-    nb_exp = get_next_exp_number("runs")
+    nb_exp = get_next_exp_number(decoder_cfg.log_dir)
     experiment_name = f"{nb_exp}_{region}_{loss}_{decoder_cfg.learning_rate}"
-    log_dir = os.path.join("runs", experiment_name)
+    log_dir = os.path.join(decoder_cfg.log_dir, experiment_name)
     
     os.makedirs(log_dir, exist_ok=True)
     print(f"Logging to: {log_dir}")
