@@ -117,7 +117,6 @@ class DecoderNet(pl.LightningModule):
                 nn.LeakyReLU(inplace=True),
                 Dropout3d_always(p=drop_rate),
                 
-                # ConvTranspose3d or Conv3d ??
                 nn.ConvTranspose3d(out_channels, out_channels, kernel_size=3, stride=1, padding=1),
                 nn.BatchNorm3d(out_channels),
                 nn.LeakyReLU(inplace=True),
