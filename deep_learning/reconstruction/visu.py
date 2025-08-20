@@ -1,5 +1,7 @@
 #visu.py
 """
+bv bash
+
 cd 2025_Champollion_Decoder/deep_learning
 
 python3 reconstruction/visu.py \

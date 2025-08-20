@@ -1,5 +1,7 @@
 #save_nii.py
 """
+bv bash
+
 cd 2025_Champollion_Decoder/deep_learning
 
 python3 reconstruction/save_nii.py -p example
