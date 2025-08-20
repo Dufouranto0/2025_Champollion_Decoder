@@ -1,8 +1,11 @@
+#visu.py
 """
+cd 2025_Champollion_Decoder/deep_learning
+
 python3 reconstruction/visu.py \
-  -p runs/39_STi-STs-STpol_left_ce_0.0005/reconstructions_epoch10 \
-  -l ce \
-  -s sub-1176340_input.nii.gz,sub-1160982_input.nii.gz,sub-1129348_input.nii.gz,sub-1151252_input.nii.gz
+  -p example \
+  -l bce \
+  -s sub-1110622_input.nii.gz,sub-1150302_input.nii.gz
 """
 
 
@@ -77,7 +80,7 @@ def plot_ana(recon_dir, n_subjects_to_display, loss_name, listsub):
         # custom palette
         pal = a.createPalette('VR-palette')
         if loss_name in ['bce', 'mse']:
-            pal.header()['palette_gradients'] = "1;1#0;1;1;0#0.994872;0#0;0;0.676923;0.444444;1;1"
+            pal.header()['palette_gradients'] = "1;1#0;1;1;0#0.994872;0#0;0;0.694872;0.244444;1;1"
             minVal=0
             maxVal=0.5
         elif loss_name == 'ce':

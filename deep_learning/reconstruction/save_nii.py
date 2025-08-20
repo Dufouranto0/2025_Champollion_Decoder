@@ -1,3 +1,10 @@
+#save_nii.py
+"""
+cd 2025_Champollion_Decoder/deep_learning
+
+python3 reconstruction/save_nii.py -p example
+"""
+
 import os
 import argparse
 import numpy as np
