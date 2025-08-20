@@ -1,5 +1,6 @@
 ```markdown
 # Champollion-Decoder
+```
 
 ```bash
 git clone https://github.com/Dufouranto0/2025_Champollion_Decoder.git
@@ -57,4 +58,4 @@ python3 reconstruction/visu.py \
 
 ## Example Visualization
 
-![Decoder Output Example](figures/decoder_visualization.png)
+![Decoder Output Example](figures/SOr_left.png)
