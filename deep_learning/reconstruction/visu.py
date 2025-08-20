@@ -48,7 +48,7 @@ def plot_ana(recon_dir, n_subjects_to_display, loss_name, listsub):
         input_files = glob.glob(os.path.join(recon_dir, "sub-*_input.nii.gz"))
 
         # Limit to N subjects
-        numbers = np.random.choice(len(input_files) + 1, size=n_subjects_to_display, replace=False)
+        numbers = np.random.choice(len(input_files), size=n_subjects_to_display, replace=False)
         input_files = [input_files[i] for i in numbers]
         print("Input files:")
         print([os.path.basename(file) for file in input_files])
@@ -117,8 +117,10 @@ def main():
     if not recon_path:
         print("No path provided. Please specify with -p.")
         return
-
-    subjects = args.subjects.split(',')
+    if args.subjects: 
+        subjects = args.subjects.split(',')
+    else:
+        subjects=None
 
     if os.path.isdir(recon_path):
         plot_ana(recon_path, args.nsubjects, args.lossname, subjects)
