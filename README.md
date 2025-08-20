@@ -1,5 +1,5 @@
 ```markdown
-# Champollion-Decoder
+Champollion-Decoder
 ```
 
 ```bash
