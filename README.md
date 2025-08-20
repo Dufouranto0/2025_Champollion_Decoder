@@ -1,6 +1,4 @@
-```markdown
-Champollion-Decoder
-```
+## Champollion-Decoder
 
 ```bash
 git clone https://github.com/Dufouranto0/2025_Champollion_Decoder.git
@@ -29,7 +27,8 @@ python3 train.py
 
 ## Saving NIfTI files from decoder outputs
 
-If you want to save NIfTI files from the NumPy outputs of the decoder (for now only the first two batches for visualization), use `save_nii.py` inside a BrainVisa environment (or any environment that contains `aims`):
+If you want to save NIfTI files from the NumPy outputs of the decoder (for now only the subjects within the first two batches have a NumpPy ouput, for visualization), use `save_nii.py` inside a BrainVisa environment (or any environment that contains `aims`).
+`save_nii.py` takes the parent folder of the generated .npy files as argument:
 
 ```bash
 bv bash
@@ -41,7 +40,9 @@ python3 reconstruction/save_nii.py -p example
 
 ## Comparing encoder input with decoder output
 
-To compare the initial encoder input with the decoder output, you also need a BrainVisa environment:
+To compare the initial encoder input (in black and white in the example below) with the decoder output (in orange in the example below), you also need a BrainVisa environment.
+`visu.py` takes the parent folder of the .nii.gz files generated with `save_nii.py`, the loss function that was used during the training and a potential list of subject ids.
+If no loss is provided, then bce is used by default, if no list of subjects is provided, 4 subjects among the .nii.gz files will be randomly picked up.
 
 ```bash
 bv bash
@@ -54,8 +55,14 @@ python3 reconstruction/visu.py \
 
 ## Decoder Architecture
 
+The architecture of the decoder (file `convnet.py`) is described in the following figure: 
+
 ![Decoder Architecture](figures/decoder_architecture.png)
 
-## Example Visualization
+## Example of visualization
+
+In the following figure, 4 input shapes (in black and white, on the left) were encoded using the Champollion V1 architecture, and decoded using this decoder.
+The decoder output after 10 epochs is provided here, not as a binary image, but as a continuous image containing the probability of each voxel to be 1 in the inital image.
+The higher the probability, the redder the voxel appears. The lower the probability, the more transparent and yellow the voxel appears.
 
 ![Decoder Output Example](figures/SOr_left.png)
