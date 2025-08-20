@@ -4,6 +4,7 @@ import torch
 from torch import nn, optim
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+import json
 import os
 
 
@@ -25,7 +26,7 @@ def train_model(
     train_loader,
     val_loader,
     num_epochs: int = 10,
-    lr: float = 1e-3,
+    lr: float = 5e-4,
     loss_name: str = "bce",
     log_dir: str = "runs",
     save_best_model: bool = True,
@@ -53,6 +54,8 @@ def train_model(
     writer = SummaryWriter(log_dir=log_dir)
     best_val_loss = float("inf")
 
+    history = {"train_loss": [], "val_loss": []}
+
     for epoch in range(num_epochs):
         # -----------------------
         # Training
@@ -72,6 +75,7 @@ def train_model(
             total_train_loss += loss.item()
 
         avg_train_loss = total_train_loss / len(train_loader)
+        history["train_loss"].append(avg_train_loss)
         writer.add_scalar("Loss/train", avg_train_loss, epoch)
 
         # -----------------------
@@ -87,6 +91,7 @@ def train_model(
                 total_val_loss += loss.item()
 
         avg_val_loss = total_val_loss / len(val_loader)
+        history["val_loss"].append(avg_val_loss)
         writer.add_scalar("Loss/val", avg_val_loss, epoch)
 
         print(
@@ -101,6 +106,30 @@ def train_model(
             best_model_path = os.path.join(log_dir, "best_model.pth")
             torch.save(model.state_dict(), best_model_path)
             print(f"Saved best model at epoch {epoch+1} with val_loss={avg_val_loss:.4f}")
+    
+    # --- Save history as JSON
+    with open(os.path.join(log_dir, "loss_history.json"), "w") as f:
+        json.dump(history, f, indent=2)
 
     writer.close()
-    return model
+    
+    return model, history
+
+def evaluate_test(model, test_loader, loss_name="bce"):
+    """
+    Evaluate a trained model on the test set and return average loss.
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+    model.eval()
+
+    loss_fn = get_loss_fn(loss_name)
+    total_loss = 0.0
+    with torch.no_grad():
+        for latents, targets, _ in test_loader:
+            latents, targets = latents.to(device), targets.to(device)
+            outputs = model(latents)
+            total_loss += loss_fn(outputs, targets).item()
+
+    return total_loss / len(test_loader)
+
