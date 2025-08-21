@@ -3,7 +3,7 @@
 import os, json
 from omegaconf import OmegaConf
 from dataloader.dataloader import DataModule_Learning
-from model.convnet import DecoderNet
+from model.convnet import Decoder
 from utils.train_utils import train_model, evaluate_test
 from train import load_configs, save_configs, infer_shapes, get_next_exp_number
 
@@ -58,7 +58,7 @@ def train_all_regions(config_path="configs/config.yaml", out_json="all_results.j
 
         latent_dim, output_shape, filters, _ = infer_shapes(dm, decoder_cfg, encoder_cfg)
 
-        model = DecoderNet(
+        model = Decoder(
             latent_dim=latent_dim,
             output_shape=output_shape,
             filters=filters,
@@ -96,6 +96,7 @@ def train_all_regions(config_path="configs/config.yaml", out_json="all_results.j
         }
 
     # --- Save all results to JSON ---
+    out_json = os.path.join(decoder_cfg.log_dir, out_json)
     with open(out_json, "w") as f:
         json.dump(results, f, indent=2)
     print(f"\nSaved results for all regions in {out_json}")

@@ -78,13 +78,13 @@ class ConvTranspose3dSame(nn.ConvTranspose3d):
         )
 
 # --------- Main Decoder ---------
-class DecoderNet(pl.LightningModule):
+class Decoder(pl.LightningModule):
     def __init__(self,
                  latent_dim=32,
                  output_shape=(1, 37, 37, 16),
                  filters=[128, 64, 32],
                  drop_rate=0.05,
-                 loss_name="ce"):
+                 loss_name="bce"):
 
         super().__init__()
 
@@ -121,6 +121,11 @@ class DecoderNet(pl.LightningModule):
                 nn.BatchNorm3d(out_channels),
                 nn.LeakyReLU(inplace=True),
                 Dropout3d_always(p=drop_rate),
+
+                #nn.ConvTranspose3d(out_channels, out_channels, kernel_size=3, stride=1, padding=1),
+                #nn.BatchNorm3d(out_channels),
+                #nn.LeakyReLU(inplace=True),
+                #Dropout3d_always(p=drop_rate),
 
             ])
             self.blocks.append(block)

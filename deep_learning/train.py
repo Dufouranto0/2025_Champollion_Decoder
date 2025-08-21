@@ -3,7 +3,7 @@
 import os
 from omegaconf import OmegaConf
 from dataloader.dataloader import DataModule_Learning
-from model.convnet import DecoderNet
+from model.convnet import Decoder
 from utils.train_utils import train_model
 from reconstruction.save_npy import save_npy
 import shutil
@@ -112,7 +112,7 @@ def main():
 
 
     # --- Init model ---
-    model = DecoderNet(
+    model = Decoder(
         latent_dim=latent_dim,
         output_shape=output_shape,
         filters=filters,
