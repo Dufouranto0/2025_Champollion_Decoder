@@ -7,7 +7,7 @@ cd 2025_Champollion_Decoder/deep_learning
 python3 reconstruction/visu.py \
   -p example \
   -l bce \
-  -s sub-1110622_input.nii.gz,sub-1150302_input.nii.gz
+  -s sub-1110622,sub-1150302
 """
 
 
@@ -35,49 +35,52 @@ def build_gradient(pal):
                                 :3][:, ::-1]  # Convert BGRA to RGBA
     pal.update()
 
-def plot_ana(recon_dir, n_subjects_to_display, loss_name, listsub):
+def plot_ana(recon_dir, n_subjects_to_display, loss_name, listsub):#, display_input):
 
     referential1 = a.createReferential()
 
     if listsub:
-        input_files = [os.path.join(recon_dir, sub) for sub in listsub]
+        decoded_files = [os.path.join(recon_dir, f"{sub}_decoded.nii.gz") for sub in listsub]
 
     else:
         print("No list of subjects given in argument, take 4 random subjects.")
-        # Find sub-XXXX_input.nii.gz 
-        input_files = glob.glob(os.path.join(recon_dir, "sub-*_input.nii.gz"))
+        # Find sub-XXXX_decoded.nii.gz 
+        decoded_files = glob.glob(os.path.join(recon_dir, "sub-*_decoded.nii.gz"))
 
         # Limit to N subjects
-        numbers = np.random.choice(len(input_files), size=n_subjects_to_display, replace=False)
-        input_files = [input_files[i] for i in numbers]
-        print("Input files:")
-        print([os.path.basename(file) for file in input_files])
+        numbers = np.random.choice(len(decoded_files), size=n_subjects_to_display, replace=False)
+        decoded_files = [decoded_files[i] for i in numbers]
+        print("Decoded files:")
+        print([os.path.basename(file) for file in decoded_files])
 
-    for i, input_path in enumerate(input_files):
-        subject_id = os.path.basename(input_path).split('_input')[0]
-        output_path = os.path.join(recon_dir, f"{subject_id}_output.nii.gz")
+    for i, decoded_path in enumerate(decoded_files):
+        subject_id = os.path.basename(decoded_path).split('_decoded')[0]
 
-        if not os.path.isfile(output_path):
-            print(f"Missing output for {subject_id}, skipping.")
-            continue
+        if True: # display_input
+            input_path = os.path.join(recon_dir, f"{subject_id}_input.nii.gz")
 
-        # Read input and output volumes
-        input_vol = aims.read(input_path)
-        output_vol = aims.read(output_path)
+            if not os.path.isfile(input_path):
+                print(f"Missing input for {subject_id}, skipping.")
+                #continue
+            else:
+                # Read input and decoded volumes
+                input_vol = aims.read(input_path)
 
-        # Display input
-        dic_windows[f'a_input_{i}'] = a.toAObject(input_vol)
-        dic_windows[f'r_input_{i}'] = a.fusionObjects(objects=[dic_windows[f'a_input_{i}']],
-                                                    method='VolumeRenderingFusionMethod')
-        dic_windows[f'r_input_{i}'].releaseAppRef()
-        dic_windows[f'r_input_{i}'].assignReferential(referential1)
-        dic_windows[f'w_input_{i}'] = a.createWindow('3D', block=block)
-        dic_windows[f'w_input_{i}'].addObjects([dic_windows[f'r_input_{i}']])
-        dic_windows[f'w_input_{i}'].setWindowTitle(f"{subject_id} - Input")
+                # Display input
+                dic_windows[f'a_input_{i}'] = a.toAObject(input_vol)
+                dic_windows[f'r_input_{i}'] = a.fusionObjects(objects=[dic_windows[f'a_input_{i}']],
+                                                            method='VolumeRenderingFusionMethod')
+                dic_windows[f'r_input_{i}'].releaseAppRef()
+                dic_windows[f'r_input_{i}'].assignReferential(referential1)
+                dic_windows[f'w_input_{i}'] = a.createWindow('3D', block=block)
+                dic_windows[f'w_input_{i}'].addObjects([dic_windows[f'r_input_{i}']])
+                dic_windows[f'w_input_{i}'].setWindowTitle(f"{subject_id} - Input")
 
-        # Display output
-        dic_windows[f'a_output_{i}'] = a.toAObject(output_vol)
-        dic_windows[f'r_output_{i}'] = a.fusionObjects(objects=[dic_windows[f'a_output_{i}']],
+        # Display decoded
+        decoded_vol = aims.read(decoded_path)
+
+        dic_windows[f'a_decoded_{i}'] = a.toAObject(decoded_vol)
+        dic_windows[f'r_decoded_{i}'] = a.fusionObjects(objects=[dic_windows[f'a_decoded_{i}']],
                                                     method='VolumeRenderingFusionMethod')
         # custom palette
         pal = a.createPalette('VR-palette')
@@ -92,15 +95,15 @@ def plot_ana(recon_dir, n_subjects_to_display, loss_name, listsub):
             maxVal=0.33
 
         build_gradient(pal)
-        dic_windows[f'r_output_{i}'].setPalette('VR-palette', minVal=minVal,
+        dic_windows[f'r_decoded_{i}'].setPalette('VR-palette', minVal=minVal,
                                         maxVal=maxVal, absoluteMode=True)
-        dic_windows[f'r_output_{i}'].releaseAppRef()
-        dic_windows[f'r_output_{i}'].assignReferential(referential1)
-        dic_windows[f'w_output_{i}'] = a.createWindow('3D', block=block)
-        dic_windows[f'w_output_{i}'].addObjects([dic_windows[f'r_output_{i}']])
-        dic_windows[f'w_output_{i}'].setWindowTitle(f"{subject_id} - Output")
+        dic_windows[f'r_decoded_{i}'].releaseAppRef()
+        dic_windows[f'r_decoded_{i}'].assignReferential(referential1)
+        dic_windows[f'w_decoded_{i}'] = a.createWindow('3D', block=block)
+        dic_windows[f'w_decoded_{i}'].addObjects([dic_windows[f'r_decoded_{i}']])
+        dic_windows[f'w_decoded_{i}'].setWindowTitle(f"{subject_id} - decoded")
 
-    print("Loaded and displayed input/output pairs in Anatomist.")
+    print("Loaded and displayed input/decoded pairs in Anatomist.")
 
 def main():
     parser = argparse.ArgumentParser(description="Save nii files from npy files.")
@@ -108,6 +111,7 @@ def main():
     parser.add_argument('-n', '--nsubjects', type=int, default=4, help="Number of subjects to plot.")
     parser.add_argument('-l', '--lossname', type=str, default='bce', help="Name of the loss used for the decoder.")
     parser.add_argument('-s', '--subjects', type=str, default=None, help="List of subjects you want to plot.")
+    #parser.add_argument('-i', '--displayinput', type=bool, default=True, help="Display encoder input volumes.")
 
 
     args = parser.parse_args()
@@ -123,7 +127,7 @@ def main():
         subjects=None
 
     if os.path.isdir(recon_path):
-        plot_ana(recon_path, args.nsubjects, args.lossname, subjects)
+        plot_ana(recon_path, args.nsubjects, args.lossname, subjects)#, args.displayinput)
     else:
         raise FileNotFoundError(f"Path {recon_path} not found.")
 

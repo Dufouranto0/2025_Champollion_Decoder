@@ -1,0 +1,116 @@
+import argparse
+import os
+import yaml
+import torch
+import pandas as pd
+import numpy as np
+
+from model.convnet import Decoder
+
+
+def load_config(config_path):
+    with open(config_path, "r") as f:
+        return yaml.safe_load(f)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Decode subjects with best model")
+    parser.add_argument("-p", "--path", required=True,
+                        help="Path to run folder (e.g. runs/57_fronto-parietal_medial_face_left_bce_0.0005)")
+    parser.add_argument("-s", "--subjects", required=True,
+                        help="List of subject IDs to decode, separated with a ,")
+    parser.add_argument("-e", "--embeddings", required=True,
+                        help="Path to the embeddings file")
+    parser.add_argument("-c", "--IDcolumnName", default='Subject',
+                        help="Name of the subject ID column in the embeddings file")
+    args = parser.parse_args()
+
+    run_dir = args.path
+    best_model_path = os.path.join(run_dir, "best_model.pth")
+    decoder_config_path = os.path.join(run_dir, ".hydra", "decoder_config.yaml")
+    encoder_config_path = os.path.join(run_dir, ".hydra", "encoder_config.yaml")
+    recon_dir = os.path.join(run_dir, "reconstruction_best_model")
+    os.makedirs(recon_dir, exist_ok=True)
+
+    # --- Load config
+    encoder_cfg = load_config(encoder_config_path)
+    decoder_cfg = load_config(decoder_config_path)
+
+    embeddings_csv = args.embeddings
+    if not os.path.exists(embeddings_csv):
+        raise FileNotFoundError(embeddings_csv)
+    print(f"Using embeddings from: {embeddings_csv}")
+
+    # --------- Load embeddings ---------
+    df = pd.read_csv(embeddings_csv)
+
+    subj_ID = args.IDcolumnName
+    if subj_ID not in list(df.columns):
+        raise ValueError(f"The column {subj_ID} is not found in {embeddings_csv}")
+
+    df = df[df[subj_ID].isin(args.subjects.split(','))]
+    if df.empty:
+        raise ValueError("No embeddings found for given subjects!")
+
+    embeddings = torch.tensor(df.drop(columns=[subj_ID]).values, dtype=torch.float32)
+    subjects = df[subj_ID].tolist()
+
+    region = list(encoder_cfg["dataset"].keys())[0]
+    s = encoder_cfg["dataset"][region]["input_size"]
+    output_shape = tuple(map(int, s.strip("()").split(",")))
+    output_shape = output_shape[1:][::-1]
+
+    if decoder_cfg["loss"] in ["bce", "mse"]:
+        output_shape = (1,) + output_shape
+
+    if decoder_cfg["loss"] == "ce":
+        # target is (D, H, W) → output should be (C=2, D, H, W)
+        output_shape = (2,) + output_shape
+
+    # --------- Load model ---------
+    model = Decoder(latent_dim=encoder_cfg["backbone_output_size"],
+                 output_shape=output_shape,
+                 filters= encoder_cfg["filters"][::-1],
+                 drop_rate=decoder_cfg["dropout"],
+                 loss_name=decoder_cfg["loss"]) 
+    model.load_state_dict(torch.load(best_model_path, map_location="cpu"))
+    model.eval()
+
+    # --- Decode
+    with torch.no_grad():
+        outputs = model(embeddings).cpu()
+
+    # --- Save reconstructions
+    for subj_id, out in zip(subjects, outputs):
+
+        # --------- Predicted volume ---------
+        if decoder_cfg["loss"] == "mse":
+            # Continuous model output (no threshold)
+            values = out.cpu().numpy()           
+            output_vol = values[0].astype(np.float32)
+
+        elif decoder_cfg["loss"] == "bce":
+            # Continuous probabilities in [0,1]
+            raw = torch.sigmoid(out)      # shape: (1, D, H, W)
+            values = raw.cpu().numpy()           
+            output_vol = values[0].astype(np.float32)
+
+        elif decoder_cfg["loss"] == "ce":
+            # out (2, D, H, W)
+            pred = out[1,:,:,:].cpu().numpy() # (1, D, H, W)
+            output_vol = pred.astype(np.float32)
+
+        else:
+            raise ValueError(f"Unsupported loss function: {decoder_cfg["loss"]}")
+
+        # Reorder axes: (D, H, W) --> (Z, Y, X)
+        output_vol = output_vol.transpose(2, 1, 0)
+
+        # Save npy
+        out_path = os.path.join(recon_dir, f"{subj_id}_decoded.npy")
+        np.save(out_path, output_vol)
+        print(f"Saved {out_path}")
+
+
+if __name__ == "__main__":
+    main()
