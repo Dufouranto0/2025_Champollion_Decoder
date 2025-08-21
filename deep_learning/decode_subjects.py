@@ -1,3 +1,11 @@
+"""
+Example:
+
+python3 decode_subjects.py -p runs/Champollion_V1_after_ablation_256/57_fronto-parietal_medial_face_left_bce_0.0005 \
+                           -s sub-1000021,sub-1000325,sub-1000575,sub-1000606,sub-1000715,sub-1000963 \
+                           -e /neurospin/dico/data/deep_folding/current/models/Champollion_V1_after_ablation_latent_256/fronto-parietal_medial_face_left/name16-13-44_35/ukb40_random_embeddings/train_embeddings.csv -c ID
+"""
+
 import argparse
 import os
 import yaml
@@ -17,7 +25,7 @@ def main():
     parser = argparse.ArgumentParser(description="Decode subjects with best model")
     parser.add_argument("-p", "--path", required=True,
                         help="Path to run folder (e.g. runs/57_fronto-parietal_medial_face_left_bce_0.0005)")
-    parser.add_argument("-s", "--subjects", required=True,
+    parser.add_argument("-s", "--subjects", default=None,
                         help="List of subject IDs to decode, separated with a ,")
     parser.add_argument("-e", "--embeddings", required=True,
                         help="Path to the embeddings file")
@@ -48,12 +56,10 @@ def main():
     if subj_ID not in list(df.columns):
         raise ValueError(f"The column {subj_ID} is not found in {embeddings_csv}")
 
-    df = df[df[subj_ID].isin(args.subjects.split(','))]
+    if args.subjects:
+        df = df[df[subj_ID].isin(args.subjects.split(','))]
     if df.empty:
         raise ValueError("No embeddings found for given subjects!")
-
-    embeddings = torch.tensor(df.drop(columns=[subj_ID]).values, dtype=torch.float32)
-    subjects = df[subj_ID].tolist()
 
     region = list(encoder_cfg["dataset"].keys())[0]
     s = encoder_cfg["dataset"][region]["input_size"]
@@ -76,40 +82,51 @@ def main():
     model.load_state_dict(torch.load(best_model_path, map_location="cpu"))
     model.eval()
 
-    # --- Decode
-    with torch.no_grad():
-        outputs = model(embeddings).cpu()
+    embeddings = torch.tensor(df.drop(columns=[subj_ID]).values, dtype=torch.float32)
+    subjects = df[subj_ID].tolist()
 
-    # --- Save reconstructions
-    for subj_id, out in zip(subjects, outputs):
+    batch_counter = 0
+    batch_size = 64
+    while len(embeddings) > batch_size * batch_counter:
+        batch_subjects = subjects[batch_counter*batch_size : (1+batch_counter)*(batch_size)]
+        batch_embeddings = embeddings[batch_counter*batch_size : (1+batch_counter)*(batch_size)]
 
-        # --------- Predicted volume ---------
-        if decoder_cfg["loss"] == "mse":
-            # Continuous model output (no threshold)
-            values = out.cpu().numpy()           
-            output_vol = values[0].astype(np.float32)
+        # --- Decode
+        with torch.no_grad():
+            outputs = model(batch_embeddings).cpu()
 
-        elif decoder_cfg["loss"] == "bce":
-            # Continuous probabilities in [0,1]
-            raw = torch.sigmoid(out)      # shape: (1, D, H, W)
-            values = raw.cpu().numpy()           
-            output_vol = values[0].astype(np.float32)
+        # --- Save reconstructions
+        for subj_id, out in zip(batch_subjects, outputs):
 
-        elif decoder_cfg["loss"] == "ce":
-            # out (2, D, H, W)
-            pred = out[1,:,:,:].cpu().numpy() # (1, D, H, W)
-            output_vol = pred.astype(np.float32)
+            # --------- Predicted volume ---------
+            if decoder_cfg["loss"] == "mse":
+                # Continuous model output (no threshold)
+                values = out.cpu().numpy()           
+                output_vol = values[0].astype(np.float32)
 
-        else:
-            raise ValueError(f"Unsupported loss function: {decoder_cfg["loss"]}")
+            elif decoder_cfg["loss"] == "bce":
+                # Continuous probabilities in [0,1]
+                raw = torch.sigmoid(out)      # shape: (1, D, H, W)
+                values = raw.cpu().numpy()           
+                output_vol = values[0].astype(np.float32)
 
-        # Reorder axes: (D, H, W) --> (Z, Y, X)
-        output_vol = output_vol.transpose(2, 1, 0)
+            elif decoder_cfg["loss"] == "ce":
+                # out (2, D, H, W)
+                pred = out[1,:,:,:].cpu().numpy() # (1, D, H, W)
+                output_vol = pred.astype(np.float32)
 
-        # Save npy
-        out_path = os.path.join(recon_dir, f"{subj_id}_decoded.npy")
-        np.save(out_path, output_vol)
-        print(f"Saved {out_path}")
+            else:
+                raise ValueError(f"Unsupported loss function: {decoder_cfg["loss"]}")
+
+            # Reorder axes: (D, H, W) --> (Z, Y, X)
+            output_vol = output_vol.transpose(2, 1, 0)
+
+            # Save npy
+            out_path = os.path.join(recon_dir, f"{subj_id}_decoded.npy")
+            np.save(out_path, output_vol)
+            print(f"Saved {out_path}")
+        
+        batch_counter += 1
 
 
 if __name__ == "__main__":
