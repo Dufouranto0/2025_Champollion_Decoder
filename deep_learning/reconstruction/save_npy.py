@@ -12,7 +12,7 @@ def save_npy(
     device,
     out_path,
     save_inputs: bool = False,
-    loss_name: str = "ce",
+    loss_name: str = "bce",
     max_batches_to_save: int = 2,
     save_histograms: bool = True,
 ):
@@ -52,28 +52,28 @@ def save_npy(
                     # Continuous model output (no threshold)
                     raw = outputs[b]                     # shape: (1, D, H, W)
                     values = raw.cpu().numpy()           
-                    output_vol = values[0].astype(np.float32)
+                    decoded_vol = values[0].astype(np.float32)
 
                 elif loss_name == "bce":
                     # Continuous probabilities in [0,1]
                     raw = torch.sigmoid(outputs[b])      # shape: (1, D, H, W)
                     values = raw.cpu().numpy()           
-                    output_vol = values[0].astype(np.float32)
+                    decoded_vol = values[0].astype(np.float32)
 
                 elif loss_name == "ce":
                     probs = outputs[b]       # (C, D, H, W)
                     pred = probs[1,:,:,:].cpu().numpy() # (1, D, H, W)
-                    output_vol = pred.astype(np.float32)
+                    decoded_vol = pred.astype(np.float32)
 
                 else:
                     raise ValueError(f"Unsupported loss function: {loss_name}")
 
                 # Reorder axes: (D, H, W) --> (Z, Y, X)
-                output_vol = output_vol.transpose(2, 1, 0)
+                decoded_vol = decodedvol.transpose(2, 1, 0)
 
                 # Save npy
-                output_path = os.path.join(out_path, f"{subj_id}_output.npy")
-                np.save(output_path, output_vol)
+                decoded_path = os.path.join(out_path, f"{subj_id}_decoded.npy")
+                np.save(decoded_path, decoded_vol)
 
                 # --------- Histogram of raw values ---------
                 if save_histograms and loss_name in ["mse", "bce"]:

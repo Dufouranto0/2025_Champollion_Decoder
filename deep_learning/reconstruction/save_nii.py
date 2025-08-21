@@ -15,7 +15,7 @@ from soma import aims
 def save_nii(root):
     print(f"Processing folder: {root}")
     try:
-        for vol in ['_input', '_output']:
+        for vol in ['_input', '_output', '_decoded']:
             npy_files = [f for f in os.listdir(root) if f.endswith(vol + '.npy')]
             print(f"Found {len(npy_files)} files for {vol}: {npy_files}")
 
@@ -25,15 +25,15 @@ def save_nii(root):
 
                 # Load and convert to float32
                 vol_npy = np.load(full_path).astype(np.float32)
-                print(f"{sub_file} stats -> min: {vol_npy.min()}, max: {vol_npy.max()}, mean: {vol_npy.mean()}")
+                #print(f"{sub_file} stats -> min: {vol_npy.min()}, max: {vol_npy.max()}, mean: {vol_npy.mean()}")
                 # Convert to AIMS Volume
                 vol_aims = aims.Volume(vol_npy)
                 vol_aims.header()['voxel_size'] = [2.0, 2.0, 2.0]
 
-                # Output file name
-                output_nii = full_path.replace('.npy', '.nii.gz')
-                aims.write(vol_aims, output_nii)
-                print(f"    Saved to {output_nii}")
+                # file name
+                file_nii = full_path.replace('.npy', '.nii.gz')
+                aims.write(vol_aims, file_nii)
+                print(f"    Saved to {file_nii}")
 
     except Exception as e:
         print(f"Exception occurred in folder: {root}")
