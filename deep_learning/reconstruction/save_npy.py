@@ -69,7 +69,7 @@ def save_npy(
                     raise ValueError(f"Unsupported loss function: {loss_name}")
 
                 # Reorder axes: (D, H, W) --> (Z, Y, X)
-                decoded_vol = decodedvol.transpose(2, 1, 0)
+                decoded_vol = decoded_vol.transpose(2, 1, 0)
 
                 # Save npy
                 decoded_path = os.path.join(out_path, f"{subj_id}_decoded.npy")

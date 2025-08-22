@@ -35,7 +35,7 @@ def build_gradient(pal):
                                 :3][:, ::-1]  # Convert BGRA to RGBA
     pal.update()
 
-def plot_ana(recon_dir, n_subjects_to_display, loss_name, listsub):#, display_input):
+def plot_ana(recon_dir, n_subjects_to_display, loss_name, listsub, dataset="UkBioBank40", region="S.C.-sylv.", side="R"):#, display_input):
 
     referential1 = a.createReferential()
 
@@ -60,9 +60,11 @@ def plot_ana(recon_dir, n_subjects_to_display, loss_name, listsub):#, display_in
             input_path = os.path.join(recon_dir, f"{subject_id}_input.nii.gz")
 
             if not os.path.isfile(input_path):
-                print(f"Missing input for {subject_id}, skipping.")
+                print(f"Missing input for {subject_id} in local folder.")
+                mm_skeleton_path = f'/neurospin/dico/data/deep_folding/current/datasets/{dataset}/crops/2mm/{region}/mask/{side}crops'
+                input_path = f"{mm_skeleton_path}/{subject_id}_cropped_skeleton.nii.gz"
                 #continue
-            else:
+            elif os.path.isfile(input_path):
                 # Read input and decoded volumes
                 input_vol = aims.read(input_path)
 
