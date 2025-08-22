@@ -1,11 +1,11 @@
 # config.yaml
 
 # Paths
-model_to_decode_path: /neurospin/dico/data/deep_folding/current/models/Champollion_V1_after_ablation_latent_256/SC-sylv_right/name09-42-54_107
+model_to_decode_path: /neurospin/dico/data/deep_folding/current/models/Champollion_V1_after_ablation/fronto-parietal_medial_face_left/name16-06-03_30
 dataset_folder: /neurospin/dico/data/deep_folding/current/datasets
 train_csv: ukb40_random_embeddings/train_embeddings.csv
 val_test_csv: ukb40_random_embeddings/val_embeddings.csv
-log_dir: runs/Champollion_V1_after_ablation_32
+log_dir: runs
 
 # Model / training parameters
 num_cpu_workers: 10
