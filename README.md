@@ -50,7 +50,7 @@ cd 2025_Champollion_Decoder/deep_learning
 python3 reconstruction/visu.py \
   -p example \
   -l bce \
-  -s sub-1110622_input.nii.gz,sub-1150302_input.nii.gz
+  -s sub-1110622,sub-1150302
 ```
 
 ## Decoder Architecture
