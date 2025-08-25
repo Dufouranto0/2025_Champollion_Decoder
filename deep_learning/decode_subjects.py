@@ -88,11 +88,14 @@ def main():
     embeddings = torch.tensor(df.drop(columns=[subj_ID]).values, dtype=torch.float32)
     subjects = df[subj_ID].tolist()
 
-    batch_counter = 0
-    batch_size = 64
-    while len(embeddings) > batch_size * batch_counter:
-        batch_subjects = subjects[batch_counter*batch_size : (1+batch_counter)*(batch_size)]
-        batch_embeddings = embeddings[batch_counter*batch_size : (1+batch_counter)*(batch_size)]
+    batch_size = 32
+    n_samples = len(embeddings)
+
+    for start in range(0, n_samples, batch_size):
+        end = min(start + batch_size, n_samples)
+
+        batch_subjects = subjects[start:end]
+        batch_embeddings = embeddings[start:end]
 
         # --- Decode
         with torch.no_grad():
@@ -101,25 +104,21 @@ def main():
         # --- Save reconstructions
         for subj_id, out in zip(batch_subjects, outputs):
 
-            # --------- Predicted volume ---------
             if decoder_cfg["loss"] == "mse":
-                # Continuous model output (no threshold)
-                values = out.cpu().numpy()           
+                values = out.cpu().numpy()
                 output_vol = values[0].astype(np.float32)
 
             elif decoder_cfg["loss"] == "bce":
-                # Continuous probabilities in [0,1]
-                raw = torch.sigmoid(out)      # shape: (1, D, H, W)
-                values = raw.cpu().numpy()           
+                raw = torch.sigmoid(out)
+                values = raw.cpu().numpy()
                 output_vol = values[0].astype(np.float32)
 
             elif decoder_cfg["loss"] == "ce":
-                # out (2, D, H, W)
-                pred = out[1,:,:,:].cpu().numpy() # (1, D, H, W)
+                pred = out[1, :, :, :].cpu().numpy()
                 output_vol = pred.astype(np.float32)
 
             else:
-                raise ValueError(f"Unsupported loss function: {decoder_cfg["loss"]}")
+                raise ValueError(f"Unsupported loss function: {decoder_cfg['loss']}")
 
             # Reorder axes: (D, H, W) --> (Z, Y, X)
             output_vol = output_vol.transpose(2, 1, 0)
@@ -128,8 +127,6 @@ def main():
             out_path = os.path.join(recon_dir, f"{subj_id}_decoded.npy")
             np.save(out_path, output_vol)
             print(f"Saved {out_path}")
-        
-        batch_counter += 1
 
 
 if __name__ == "__main__":

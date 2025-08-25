@@ -22,6 +22,19 @@ Then run:
 cd deep_learning
 python3 train.py
 ```
+---
+
+## Decoding subjects from a .csv file
+
+If you want to decode subjects, with a known model (already trained), use `decode_subjects.py`.
+`decode_subjects.py` takes as argument the path the the trained model folder (-p), the list of subjects (-s), the path to the embeddings file (-e) and the name of the ID column in the embeddings file (-c):
+
+```bash
+python3 decode_subjects.py -p runs/latent_256/57_fparmedial_left_bce_0.0005 \
+                           -s sub-1000021,sub-1000325,sub-1000575,sub-1000606,sub-1000715,sub-1000963 \
+                           -e latent_256/fparmedial_left/name16-13-44_35/ukb40_random_embeddings/train_embeddings.csv \
+                           -c ID
+```
 
 ---
 

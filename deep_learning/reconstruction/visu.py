@@ -64,7 +64,7 @@ def plot_ana(recon_dir, n_subjects_to_display, loss_name, listsub, dataset="UkBi
                 mm_skeleton_path = f'/neurospin/dico/data/deep_folding/current/datasets/{dataset}/crops/2mm/{region}/mask/{side}crops'
                 input_path = f"{mm_skeleton_path}/{subject_id}_cropped_skeleton.nii.gz"
                 #continue
-            elif os.path.isfile(input_path):
+            if os.path.isfile(input_path):
                 # Read input and decoded volumes
                 input_vol = aims.read(input_path)
 
@@ -77,6 +77,8 @@ def plot_ana(recon_dir, n_subjects_to_display, loss_name, listsub, dataset="UkBi
                 dic_windows[f'w_input_{i}'] = a.createWindow('3D', block=block)
                 dic_windows[f'w_input_{i}'].addObjects([dic_windows[f'r_input_{i}']])
                 dic_windows[f'w_input_{i}'].setWindowTitle(f"{subject_id} - Input")
+            else:
+                print(f"Missing input for {subject_id} in original folder.")
 
         # Display decoded
         decoded_vol = aims.read(decoded_path)
