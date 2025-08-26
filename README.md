@@ -19,7 +19,7 @@ The `val_test_csv` corresponds to embeddings containing subjects used for **vali
 Then run:
 
 ```bash
-cd deep_learning
+cd decoder
 python3 train.py
 ```
 ---
@@ -30,10 +30,12 @@ If you want to decode subjects, with a known model (already trained), use `decod
 `decode_subjects.py` takes as argument the path the the trained model folder (-p), the list of subjects (-s), the path to the embeddings file (-e) and the name of the ID column in the embeddings file (-c):
 
 ```bash
-python3 decode_subjects.py -p runs/latent_256/57_fparmedial_left_bce_0.0005 \
-                           -s sub-1000021,sub-1000325,sub-1000575,sub-1000606,sub-1000715,sub-1000963 \
-                           -e latent_256/fparmedial_left/name16-13-44_35/ukb40_random_embeddings/train_embeddings.csv \
-                           -c ID
+cd 2025_Champollion_Decoder
+python3 -m decoder.reconstruction.decode_subjects \
+                          -p runs/latent_256/57_fparmedial_left_bce_0.0005 \
+                          -s sub-1000021,sub-1000325,sub-1000575,sub-1000606,sub-1000715,sub-1000963 \
+                          -e latent_256/fparmedial_left/name16-13-44_35/ukb40_random_embeddings/train_embeddings.csv \
+                          -c ID
 ```
 
 ---
@@ -45,7 +47,7 @@ If you want to save NIfTI files from the NumPy outputs of the decoder (for now o
 
 ```bash
 bv bash
-cd 2025_Champollion_Decoder/deep_learning
+cd 2025_Champollion_Decoder/decoder
 python3 reconstruction/save_nii.py -p example
 ```
 
@@ -59,7 +61,7 @@ If no loss is provided, then bce is used by default, if no list of subjects is p
 
 ```bash
 bv bash
-cd 2025_Champollion_Decoder/deep_learning
+cd 2025_Champollion_Decoder/decoder
 python3 reconstruction/visu.py \
   -p example \
   -l bce \
