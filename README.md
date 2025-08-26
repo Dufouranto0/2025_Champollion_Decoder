@@ -32,11 +32,28 @@ If you want to decode subjects, with a known model (already trained), use `decod
 ```bash
 cd 2025_Champollion_Decoder
 python3 -m decoder.reconstruction.decode_subjects \
-                          -p runs/latent_256/57_fparmedial_left_bce_0.0005 \
-                          -s sub-1000021,sub-1000325,sub-1000575,sub-1000606,sub-1000715,sub-1000963 \
-                          -e latent_256/fparmedial_left/name16-13-44_35/ukb40_random_embeddings/train_embeddings.csv \
-                          -c ID
+                       -p decoder/runs/Champollion_V1_after_ablation_256/23_SC-sylv_left_bce_0.0005 \
+                       -s sub-1000021,sub-1000325,sub-1000575,sub-1000606 \
+                       -e /neurospin/dico/data/deep_folding/current/models/Champollion_V1_after_ablation_latent_256/SC-sylv_left/name09-39-51_74/ukb40_random_embeddings/full_embeddings.csv \
+                       -c ID
+
 ```
+
+---
+
+## Decoding subjects from train, val and test
+
+If you want to decode all the subjects fom the train, val and test sets, with a known model (already trained), use `decode_train_val_test.py`.
+`decode_train_val_test.py` takes as argument the path the the trained model folder (-p), the split you want to work on (--split), the kind of subjects you want to save regarding the loss function (i.e. the reconstruciton error), the best reconstructed subjects or the worst (-m), the number of reconstruction to save regarding this criteria (-n), and finaly a possibility to compute the smoothed score per voxel for each subject, regarding the distribution of error in each split, so as to find outliers (--outliers):
+
+```bash
+cd 2025_Champollion_Decoder
+python3 -m decoder.reconstruction.decode_train_val_test \
+                          -p decoder/runs/Champollion_V1_after_ablation_256/23_SC-sylv_left_bce_0.0005 \
+                          -m worst \
+                          -n 10
+```
+
 
 ---
 
