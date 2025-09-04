@@ -35,20 +35,28 @@ def build_gradient(pal):
                                 :3][:, ::-1]  # Convert BGRA to RGBA
     pal.update()
 
-def plot_ana(recon_dir, n_subjects_to_display, loss_name, listsub, dataset="UkBioBank40", region="S.C.-sylv.", side="R"):#, display_input):
+def npy_to_nii(sub_file):
+    vol_npy = np.load(sub_file).astype(np.float32)
+    #vol_npy = np.transpose(vol_npy, (2, 1, 0))
+    vol_aims = aims.Volume(vol_npy)
+    vol_aims.header()['voxel_size'] = [2.0, 2.0, 2.0]
+    file_nii = sub_file.replace('.npy', '.nii.gz')
+    aims.write(vol_aims, file_nii)
+
+def plot_ana(recon_dir, n_subjects_to_display, loss_name, listsub, dataset="UkBioBank40", region="S.T.s.br.", side="L"):#, display_input):
 
     referential1 = a.createReferential()
 
     if listsub:
-        decoded_files = [os.path.join(recon_dir, f"{sub}_decoded.nii.gz") for sub in listsub]
+        decoded_files = [os.path.join(recon_dir, f"{sub}_decoded.npy") for sub in listsub]
 
     else:
         print("No list of subjects given in argument, take 4 random subjects.")
-        # Find sub-XXXX_decoded.nii.gz 
-        decoded_files = glob.glob(os.path.join(recon_dir, "sub-*_decoded.nii.gz"))
+        # Find sub-XXXX_decoded.npy
+        decoded_files = glob.glob(os.path.join(recon_dir, "sub-*_decoded.npy"))
 
         if len(decoded_files)==0:
-            raise FileNotFoundError(f'No file found at: {os.path.join(recon_dir, "sub-*_decoded.nii.gz")}')
+            raise FileNotFoundError(f'No file found at: {os.path.join(recon_dir, "sub-*_decoded.npy")}')
 
         # Limit to N subjects
         numbers = np.random.choice(len(decoded_files), size=n_subjects_to_display, replace=False)
@@ -60,7 +68,7 @@ def plot_ana(recon_dir, n_subjects_to_display, loss_name, listsub, dataset="UkBi
         subject_id = os.path.basename(decoded_path).split('_decoded')[0]
 
         if True: # display_input
-            input_path = os.path.join(recon_dir, f"{subject_id}_input.nii.gz")
+            input_path = os.path.join(recon_dir, f"{subject_id}_input.npy")
 
             if not os.path.isfile(input_path):
                 print(f"Missing input for {subject_id} in local folder.")
@@ -69,7 +77,11 @@ def plot_ana(recon_dir, n_subjects_to_display, loss_name, listsub, dataset="UkBi
                 #continue
             if os.path.isfile(input_path):
                 # Read input and decoded volumes
-                input_vol = aims.read(input_path)
+                if input_path.endswith("npy"):
+                    npy_to_nii(input_path)
+                    input_path = input_path.replace('.npy', '.nii.gz')
+                if input_path.endswith("nii.gz"):
+                    input_vol = aims.read(input_path)
 
                 # Display input
                 dic_windows[f'a_input_{i}'] = a.toAObject(input_vol)
@@ -84,7 +96,11 @@ def plot_ana(recon_dir, n_subjects_to_display, loss_name, listsub, dataset="UkBi
                 print(f"Missing input for {subject_id} in original folder.")
 
         # Display decoded
-        decoded_vol = aims.read(decoded_path)
+        if decoded_path.endswith("npy"):
+            npy_to_nii(decoded_path)
+            decoded_path = decoded_path.replace('.npy', '.nii.gz')
+        if decoded_path.endswith("nii.gz"):
+            decoded_vol = aims.read(decoded_path)
 
         dic_windows[f'a_decoded_{i}'] = a.toAObject(decoded_vol)
         dic_windows[f'r_decoded_{i}'] = a.fusionObjects(objects=[dic_windows[f'a_decoded_{i}']],
