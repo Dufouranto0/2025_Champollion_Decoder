@@ -14,7 +14,7 @@ def save_npy(
     save_inputs: bool = False,
     loss_name: str = "bce",
     max_batches_to_save: int = 2,
-    save_histograms: bool = True,
+    save_histograms: bool = False,
 ):
     """
     Save model reconstructions as .npy files and optionally input volumes.

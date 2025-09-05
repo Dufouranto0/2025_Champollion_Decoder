@@ -1,18 +1,18 @@
 # config.yaml
 
 # Paths
-model_to_decode_path: /neurospin/dico/data/deep_folding/current/models/Champollion_V1_after_ablation_latent_256/STs_left/name04-48-30_149
+model_to_decode_path: /neurospin/dico/data/deep_folding/current/models/Champollion_V1_after_ablation/STs_left/name08-32-58_223
 dataset_folder: /neurospin/dico/data/deep_folding/current/datasets
 train_csv: ukb40_random_embeddings/train_embeddings.csv
 val_test_csv: ukb40_random_embeddings/val_embeddings.csv
-log_dir: runs
+out_dir: runs
 
 # Model / training parameters
 num_cpu_workers: 10
 batch_size: 32
 loss: bce
 learning_rate: 5e-4
-num_epochs: 10
+num_epochs: 5
 dropout: 0.05
 save_best_model: true
 

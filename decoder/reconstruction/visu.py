@@ -1,4 +1,4 @@
-#visu.py
+# visu.py
 """
 bv bash
 
@@ -10,7 +10,6 @@ python3 reconstruction/visu.py \
   -s sub-1110622,sub-1150302
 """
 
-
 import anatomist.api as ana
 from soma.qt_gui.qt_backend import Qt
 from soma import aims
@@ -19,11 +18,14 @@ import argparse
 import os
 import glob
 
+
+# ===========================
+# Utility Functions
+# ===========================
+
 def build_gradient(pal):
-    """Builds a gradient palette."""
-    gw = ana.cpp.GradientWidget(
-        None, 'gradientwidget',
-        pal.header()['palette_gradients'])
+    """Build a gradient palette for Anatomist visualization."""
+    gw = ana.cpp.GradientWidget(None, 'gradientwidget', pal.header()['palette_gradients'])
     gw.setHasAlpha(True)
     nc = pal.shape[0]
     rgbp = gw.fillGradient(nc, True)
@@ -31,140 +33,174 @@ def build_gradient(pal):
     npal = pal.np['v']
     pb = np.frombuffer(rgb, dtype=np.uint8).reshape((nc, 4))
     npal[:, 0, 0, 0, :] = pb
-    npal[:, 0, 0, 0, :3] = npal[:, 0, 0, 0,
-                                :3][:, ::-1]  # Convert BGRA to RGBA
+    # Convert BGRA to RGBA
+    npal[:, 0, 0, 0, :3] = npal[:, 0, 0, 0, :3][:, ::-1]
     pal.update()
 
-def npy_to_nii(sub_file):
-    vol_npy = np.load(sub_file).astype(np.float32)
-    #vol_npy = np.transpose(vol_npy, (2, 1, 0))
+
+def npy_to_nii(npy_path):
+    """Convert a NumPy volume to a NIfTI (.nii.gz) file."""
+    vol_npy = np.load(npy_path).astype(np.float32)
     vol_aims = aims.Volume(vol_npy)
     vol_aims.header()['voxel_size'] = [2.0, 2.0, 2.0]
-    file_nii = sub_file.replace('.npy', '.nii.gz')
-    aims.write(vol_aims, file_nii)
+    nii_path = npy_path.replace('.npy', '.nii.gz')
+    aims.write(vol_aims, nii_path)
+    return nii_path
 
-def plot_ana(recon_dir, n_subjects_to_display, loss_name, listsub, dataset="UkBioBank40", region="S.T.s.br.", side="L"):#, display_input):
 
-    referential1 = a.createReferential()
+def ensure_nii_exists(file_path):
+    """
+    Ensure that a .nii.gz file exists for the given input.
+    If it's a .npy, convert it to .nii.gz.
+    """
+    if file_path.endswith('.nii.gz') and os.path.isfile(file_path):
+        return file_path
 
+    if file_path.endswith('.npy') and os.path.isfile(file_path):
+        return npy_to_nii(file_path)
+
+    raise FileNotFoundError(f"File not found or unsupported format: {file_path}")
+
+
+def load_and_prepare_volume(anatomist, file_path, referential, palette=None, min_val=None, max_val=None):
+    """Load a volume into Anatomist, wrap it into a fusion object, assign referential."""
+    vol = aims.read(file_path)
+    a_obj = anatomist.toAObject(vol)
+    fusion = anatomist.fusionObjects(objects=[a_obj], method='VolumeRenderingFusionMethod')
+
+    if palette:
+        fusion.setPalette(palette, minVal=min_val, maxVal=max_val, absoluteMode=True)
+
+    fusion.releaseAppRef()
+    fusion.assignReferential(referential)
+    return fusion
+
+
+# ===========================
+# Core Logic
+# ===========================
+
+def get_decoded_files(recon_dir, listsub, n_subjects_to_display):
+    """Get decoded files either from provided subjects or randomly from directory."""
     if listsub:
         decoded_files = [os.path.join(recon_dir, f"{sub}_decoded.npy") for sub in listsub]
-
     else:
-        print("No list of subjects given in argument, take 4 random subjects.")
-        # Find sub-XXXX_decoded.npy
+        print("No list of subjects provided, taking random subjects.")
         decoded_files = glob.glob(os.path.join(recon_dir, "sub-*_decoded.npy"))
 
-        if len(decoded_files)==0:
-            raise FileNotFoundError(f'No file found at: {os.path.join(recon_dir, "sub-*_decoded.npy")}')
+        if not decoded_files:
+            raise FileNotFoundError(f"No decoded files found in {recon_dir}")
 
-        # Limit to N subjects
-        numbers = np.random.choice(len(decoded_files), size=n_subjects_to_display, replace=False)
-        decoded_files = [decoded_files[i] for i in numbers]
-        print("Decoded files:")
-        print([os.path.basename(file) for file in decoded_files])
+        selected = np.random.choice(len(decoded_files), size=n_subjects_to_display, replace=False)
+        decoded_files = [decoded_files[i] for i in selected]
+        print("Randomly selected decoded files:", [os.path.basename(f) for f in decoded_files])
+
+    return decoded_files
+
+
+def plot_ana(recon_dir, n_subjects_to_display, loss_name, listsub,
+             dataset="UkBioBank40", region="S.T.s.br.", side="L"):
+    """
+    Display pairs of input and decoded volumes in Anatomist,
+    side-by-side for each subject.
+    """
+    referential = a.createReferential()
+
+    # Palette settings based on loss
+    palette_config = {
+        'bce': {
+            'gradient': "1;1#0;1;1;0#0.994872;0#0;0;0.694872;0.244444;1;1",
+            'min_val': 0, 'max_val': 0.5
+        },
+        'mse': {
+            'gradient': "1;1#0;1;1;0#0.994872;0#0;0;0.694872;0.244444;1;1",
+            'min_val': 0, 'max_val': 0.5
+        },
+        'ce': {
+            'gradient': "1;1#0;1;0.292308;0.733333;0.510256;0;0.679487;"
+                        "0.733333#1;0#0;0;0.341026;0.111111;0.507692;"
+                        "0.911111;0.697436;0.111111;1;0",
+            'min_val': -1.6, 'max_val': 0.33
+        }
+    }
+
+    decoded_files = get_decoded_files(recon_dir, listsub, n_subjects_to_display)
+
+    # Prepare palette
+    pal = a.createPalette('VR-palette')
+    pal.header()['palette_gradients'] = palette_config[loss_name]['gradient']
+    build_gradient(pal)
 
     for i, decoded_path in enumerate(decoded_files):
         subject_id = os.path.basename(decoded_path).split('_decoded')[0]
 
-        if True: # display_input
-            input_path = os.path.join(recon_dir, f"{subject_id}_input.npy")
+        # ---- Load input file ----
+        input_path = os.path.join(recon_dir, f"{subject_id}_input.npy")
+        if not os.path.isfile(input_path):
+            print(f"Local input file missing for {subject_id}, searching in original dataset...")
+            mm_skeleton_path = f"/neurospin/dico/data/deep_folding/current/datasets/{dataset}/crops/2mm/{region}/mask/{side}crops"
+            input_path = os.path.join(mm_skeleton_path, f"{subject_id}_cropped_skeleton.nii.gz")
 
-            if not os.path.isfile(input_path):
-                print(f"Missing input for {subject_id} in local folder.")
-                mm_skeleton_path = f'/neurospin/dico/data/deep_folding/current/datasets/{dataset}/crops/2mm/{region}/mask/{side}crops'
-                input_path = f"{mm_skeleton_path}/{subject_id}_cropped_skeleton.nii.gz"
-                #continue
-            if os.path.isfile(input_path):
-                # Read input and decoded volumes
-                if input_path.endswith("npy"):
-                    npy_to_nii(input_path)
-                    input_path = input_path.replace('.npy', '.nii.gz')
-                if input_path.endswith("nii.gz"):
-                    input_vol = aims.read(input_path)
+        try:
+            input_path = ensure_nii_exists(input_path)
+            dic_windows[f'r_input_{i}'] = load_and_prepare_volume(
+                a, input_path, referential
+            )
+            dic_windows[f'w_input_{i}'] = a.createWindow('3D', block=block)
+            dic_windows[f'w_input_{i}'].addObjects([dic_windows[f'r_input_{i}']])
+        except FileNotFoundError:
+            print(f"ERROR: Input file not found for {subject_id}. Skipping.")
+            continue
 
-                # Display input
-                dic_windows[f'a_input_{i}'] = a.toAObject(input_vol)
-                dic_windows[f'r_input_{i}'] = a.fusionObjects(objects=[dic_windows[f'a_input_{i}']],
-                                                            method='VolumeRenderingFusionMethod')
-                dic_windows[f'r_input_{i}'].releaseAppRef()
-                dic_windows[f'r_input_{i}'].assignReferential(referential1)
-                dic_windows[f'w_input_{i}'] = a.createWindow('3D', block=block)
-                dic_windows[f'w_input_{i}'].addObjects([dic_windows[f'r_input_{i}']])
-                dic_windows[f'w_input_{i}'].setWindowTitle(f"{subject_id} - Input")
-            else:
-                print(f"Missing input for {subject_id} in original folder.")
+        # ---- Load decoded file ----
+        try:
+            decoded_path = ensure_nii_exists(decoded_path)
+            dic_windows[f'r_decoded_{i}'] = load_and_prepare_volume(
+                a, decoded_path, referential,
+                palette='VR-palette',
+                min_val=palette_config[loss_name]['min_val'],
+                max_val=palette_config[loss_name]['max_val']
+            )
+            dic_windows[f'w_decoded_{i}'] = a.createWindow('3D', block=block)
+            dic_windows[f'w_decoded_{i}'].addObjects([dic_windows[f'r_decoded_{i}']])
+        except FileNotFoundError:
+            print(f"ERROR: Decoded file not found for {subject_id}. Skipping.")
+            continue
 
-        # Display decoded
-        if decoded_path.endswith("npy"):
-            npy_to_nii(decoded_path)
-            decoded_path = decoded_path.replace('.npy', '.nii.gz')
-        if decoded_path.endswith("nii.gz"):
-            decoded_vol = aims.read(decoded_path)
+    print("All subjects loaded and displayed successfully.")
 
-        dic_windows[f'a_decoded_{i}'] = a.toAObject(decoded_vol)
-        dic_windows[f'r_decoded_{i}'] = a.fusionObjects(objects=[dic_windows[f'a_decoded_{i}']],
-                                                    method='VolumeRenderingFusionMethod')
-        # custom palette
-        pal = a.createPalette('VR-palette')
-        if loss_name in ['bce', 'mse']:
-            pal.header()['palette_gradients'] = "1;1#0;1;1;0#0.994872;0#0;0;0.694872;0.244444;1;1"
-            minVal, maxVal = 0, 0.5 #float(decoded_vol.arraydata().max()+0.1)
 
-        elif loss_name == 'ce':
-            pal.header()['palette_gradients'] = "1;1#0;1;0.292308;0.733333;0.510256;0;0.679487;"+\
-            "0.733333#1;0#0;0;0.341026;0.111111;0.507692;0.911111;0.697436;0.111111;1;0"
-            minVal=-1.6
-            maxVal=0.33
-
-        build_gradient(pal)
-        dic_windows[f'r_decoded_{i}'].setPalette('VR-palette', minVal=minVal,
-                                        maxVal=maxVal, absoluteMode=True)
-        dic_windows[f'r_decoded_{i}'].releaseAppRef()
-        dic_windows[f'r_decoded_{i}'].assignReferential(referential1)
-        dic_windows[f'w_decoded_{i}'] = a.createWindow('3D', block=block)
-        dic_windows[f'w_decoded_{i}'].addObjects([dic_windows[f'r_decoded_{i}']])
-        dic_windows[f'w_decoded_{i}'].setWindowTitle(f"{subject_id} - decoded")
-
-    print("Loaded and displayed input/decoded pairs in Anatomist.")
+# ===========================
+# CLI
+# ===========================
 
 def main():
-    parser = argparse.ArgumentParser(description="Save nii files from npy files.")
-    parser.add_argument('-p', '--path', type=str, help="Base folder path to the reconstructions.")
+    parser = argparse.ArgumentParser(description="Visualize input vs decoded volumes in Anatomist.")
+    parser.add_argument('-p', '--path', type=str, required=True, help="Base folder path to the reconstructions.")
+    parser.add_argument('-s', '--subjects', type=str, default=None,
+                        help="Comma-separated list of subject IDs to plot (e.g., sub-1110622,sub-1150302).")
     parser.add_argument('-n', '--nsubjects', type=int, default=4, help="Number of subjects to plot.")
-    parser.add_argument('-l', '--lossname', type=str, default='bce', help="Name of the loss used for the decoder.")
-    parser.add_argument('-s', '--subjects', type=str, default=None, help="List of subjects you want to plot.")
-    #parser.add_argument('-i', '--displayinput', type=bool, default=True, help="Display encoder input volumes.")
-
+    parser.add_argument('-l', '--lossname', type=str, default='bce', choices=['bce', 'mse', 'ce'],
+                        help="Loss type used for decoding (affects palette).")
 
     args = parser.parse_args()
+    subjects = args.subjects.split(',') if args.subjects else None
 
-    recon_path = args.path
+    if not os.path.isdir(args.path):
+        raise FileNotFoundError(f"Provided path not found: {args.path}")
 
-    if not recon_path:
-        print("No path provided. Please specify with -p.")
-        return
-    if args.subjects: 
-        subjects = args.subjects.split(',')
-    else:
-        subjects=None
-
-    if os.path.isdir(recon_path):
-        plot_ana(recon_path, args.nsubjects, args.lossname, subjects)#, args.displayinput)
-    else:
-        raise FileNotFoundError(f"Path {recon_path} not found.")
+    plot_ana(args.path, args.nsubjects, args.lossname, subjects)
 
 
 if __name__ == "__main__":
     a = ana.Anatomist()
     nb_columns = 2
-    block = a.createWindowsBlock(nb_columns) 
+    block = a.createWindowsBlock(nb_columns)
     dic_windows = {}
 
     main()
 
-    # Keep the GUI application open
+    # Keep GUI open
     qt_app = Qt.QApplication.instance()
     if qt_app is not None:
         qt_app.exec_()
-
