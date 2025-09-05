@@ -23,6 +23,33 @@ import glob
 # Utility Functions
 # ===========================
 
+def simple_yaml_loader(filepath):
+    data = {}
+    with open(filepath, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):  # skip empty and comment lines
+                continue
+            if ":" in line:
+                key, value = line.split(":", 1)
+                data[key.strip()] = value.strip()
+    return data
+
+def load_configs(path: str):
+    """
+    Load decoder config and corresponding encoder config.
+    """
+    path = os.path.dirname(path)
+    encoder_config_path = os.path.join(path,'.hydra', 'encoder_config.yaml')
+    encoder_cfg = simple_yaml_loader(encoder_config_path)
+    decoder_config_path = os.path.join(path,'.hydra', 'decoder_config.yaml')
+    decoder_cfg = simple_yaml_loader(decoder_config_path)
+    loss = decoder_cfg['loss']
+    region_name, mask, side_skeleton = (encoder_cfg['numpy_all']).split('/')[-3:]
+    print(region_name, mask, side_skeleton)
+    side = side_skeleton[0]
+    return region_name, side, loss
+
 def build_gradient(pal):
     """Build a gradient palette for Anatomist visualization."""
     gw = ana.cpp.GradientWidget(None, 'gradientwidget', pal.header()['palette_gradients'])
@@ -180,8 +207,6 @@ def main():
     parser.add_argument('-s', '--subjects', type=str, default=None,
                         help="Comma-separated list of subject IDs to plot (e.g., sub-1110622,sub-1150302).")
     parser.add_argument('-n', '--nsubjects', type=int, default=4, help="Number of subjects to plot.")
-    parser.add_argument('-l', '--lossname', type=str, default='bce', choices=['bce', 'mse', 'ce'],
-                        help="Loss type used for decoding (affects palette).")
 
     args = parser.parse_args()
     subjects = args.subjects.split(',') if args.subjects else None
@@ -189,7 +214,14 @@ def main():
     if not os.path.isdir(args.path):
         raise FileNotFoundError(f"Provided path not found: {args.path}")
 
-    plot_ana(args.path, args.nsubjects, args.lossname, subjects)
+    region_name, side, loss = load_configs(args.path)
+
+    plot_ana(recon_dir=args.path,
+            n_subjects_to_display=args.nsubjects,
+            listsub=subjects, 
+            region = region_name, 
+            side = side,
+            loss_name=loss)
 
 
 if __name__ == "__main__":

@@ -69,7 +69,6 @@ cd 2025_Champollion_Decoder
 python3 decoder/reconstruction/visu.py \
   -p decoder/example \
   -s sub-1110622,sub-1150302
-  -l bce \
 ```
 
 ## Decoder Architecture
