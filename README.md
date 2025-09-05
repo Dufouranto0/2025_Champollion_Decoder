@@ -19,8 +19,8 @@ The `val_test_csv` corresponds to embeddings containing subjects used for **vali
 Then run:
 
 ```bash
-cd decoder
-python3 train.py
+cd 2025_Champollion_Decoder
+python3 -m decoder.train
 ```
 ---
 
@@ -32,7 +32,7 @@ If you want to decode subjects, with a known model (already trained), use `decod
 ```bash
 cd 2025_Champollion_Decoder
 python3 -m decoder.reconstruction.decode_subjects \
-                       -p decoder/runs/Champollion_V1_after_ablation_256/23_SC-sylv_left_bce_0.0005 \
+                       -p runs/Champollion_V1_after_ablation_256/23_SC-sylv_left_bce_0.0005 \
                        -s sub-1000021,sub-1000325,sub-1000575,sub-1000606 \
                        -e /neurospin/dico/data/deep_folding/current/models/Champollion_V1_after_ablation_latent_256/SC-sylv_left/name09-39-51_74/ukb40_random_embeddings/full_embeddings.csv \
                        -c ID
@@ -49,7 +49,7 @@ If you want to decode all the subjects fom the train, val and test sets, with a 
 ```bash
 cd 2025_Champollion_Decoder
 python3 -m decoder.reconstruction.decode_train_val_test \
-                          -p decoder/runs/Champollion_V1_after_ablation_256/23_SC-sylv_left_bce_0.0005 \
+                          -p runs/1_STs_left_bce_0.0005 \
                           -m worst \
                           -n 10
 ```
@@ -57,32 +57,19 @@ python3 -m decoder.reconstruction.decode_train_val_test \
 
 ---
 
-## Saving NIfTI files from decoder outputs
-
-If you want to save NIfTI files from the NumPy outputs of the decoder (for now only the subjects within the first two batches have a NumpPy ouput, for visualization), use `save_nii.py` inside a BrainVisa environment (or any environment that contains `aims`).
-`save_nii.py` takes the parent folder of the generated .npy files as argument:
-
-```bash
-bv bash
-cd 2025_Champollion_Decoder/decoder
-python3 reconstruction/save_nii.py -p example
-```
-
----
-
 ## Comparing encoder input with decoder output
 
 To compare the initial encoder input (in black and white in the example below) with the decoder output (in orange in the example below), you also need a BrainVisa environment.
-`visu.py` takes the parent folder of the .nii.gz files generated with `save_nii.py`, the loss function that was used during the training and a potential list of subject ids.
-If no loss is provided, then bce is used by default, if no list of subjects is provided, 4 subjects among the .nii.gz files will be randomly picked up.
+`visu.py` takes the parent folder of the .npy files generated with `decode_subjects.py` or `decode_train_val_test.py`, the loss function that was used during the training and a potential list of subject ids.
+If no loss is provided, then bce is used by default, if no list of subjects is provided, 4 subjects among the .npy files will be randomly picked up.
 
 ```bash
 bv bash
-cd 2025_Champollion_Decoder/decoder
-python3 reconstruction/visu.py \
-  -p example \
-  -l bce \
+cd 2025_Champollion_Decoder
+python3 decoder/reconstruction/visu.py \
+  -p decoder/example \
   -s sub-1110622,sub-1150302
+  -l bce \
 ```
 
 ## Decoder Architecture
@@ -98,3 +85,17 @@ The decoder output after 10 epochs is provided here, not as a binary image, but 
 The higher the probability, the redder the voxel appears. The lower the probability, the more transparent and yellow the voxel appears.
 
 ![Decoder Output Example](figures/SOr_left.png)
+
+---
+
+## Saving NIfTI files from decoder outputs
+
+If you want to save NIfTI files from the NumPy outputs of the decoder, use `save_nii.py` inside a BrainVisa environment (or any environment that contains `aims`).
+`save_nii.py` takes the parent folder of the generated .npy files as argument:
+
+```bash
+bv bash
+cd 2025_Champollion_Decoder/decoder
+python3 reconstruction/save_nii.py -p example
+```
+
