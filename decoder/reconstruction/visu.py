@@ -136,7 +136,7 @@ def plot_ana(recon_dir, n_subjects_to_display, loss_name, listsub,
     # Palette settings based on loss
     palette_config = {
         'bce': {
-            'gradient': "1;1#0;1;1;0#0.994872;0#0;0;0.694872;0.244444;1;1",
+            'gradient': "1;1#0;1;1;0#0.994872;0#0;0;0.635897;0.266667;1;1",
             'min_val': 0, 'max_val': 0.5
         },
         'mse': {
