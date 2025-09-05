@@ -2,21 +2,21 @@
 
 import os
 from omegaconf import OmegaConf
-from dataloader.dataloader import DataModule_Learning
-from model.convnet import Decoder
-from utils.train_utils import train_model
-from reconstruction.save_npy import save_npy
+from decoder.dataloader.dataloader import DataModule_Learning
+from decoder.model.convnet import Decoder
+from decoder.utils.train_utils import train_model
+from decoder.reconstruction.save_npy import save_npy
 import shutil
 import re
 
-
+print(">>> decoder/train.py has started running <<<")
 
 def load_configs(decoder_cfg_path: str):
     """
     Load decoder config and corresponding encoder config.
     """
     decoder_cfg = OmegaConf.load(decoder_cfg_path)
-
+    
     encoder_config_path = os.path.join(
         decoder_cfg.model_to_decode_path, ".hydra", "config.yaml"
     )
@@ -30,9 +30,9 @@ def load_configs(decoder_cfg_path: str):
 
     return decoder_cfg, encoder_cfg
 
-def save_configs(log_dir, decoder_cfg, encoder_cfg):
+def save_configs(out_dir, decoder_cfg, encoder_cfg):
     """Save decoder and encoder configs in Hydra-style directory."""
-    hydra_dir = os.path.join(log_dir, ".hydra")
+    hydra_dir = os.path.join(out_dir, ".hydra")
     os.makedirs(hydra_dir, exist_ok=True)
 
     # Save the main config
@@ -86,8 +86,12 @@ def get_next_exp_number(runs_dir="runs"):
 
 
 def main():
+    # Get the absolute path to the current file
+    CURRENT_FILE = os.path.abspath(__file__)
+    # Go two levels up: decoder/train.py → decoder → 2025_Champollion_Decoder
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(CURRENT_FILE))
     # --- Load configs ---
-    decoder_cfg, encoder_cfg = load_configs("configs/config.yaml")
+    decoder_cfg, encoder_cfg = load_configs(f"{PROJECT_ROOT}/decoder/configs/config.yaml")
     region = list(encoder_cfg.dataset.keys())[0]
 
     print("Region:", region)
@@ -121,15 +125,20 @@ def main():
     )
 
     # --- Training ---
-    nb_exp = get_next_exp_number(decoder_cfg.log_dir)
+    base_out_dir = os.path.join(PROJECT_ROOT, decoder_cfg.out_dir)
+
+    # Example: PROJECT_ROOT + "runs" → "2025_Champollion_Decoder/runs"
+    os.makedirs(base_out_dir, exist_ok=True)
+
+    nb_exp = get_next_exp_number(base_out_dir)
     experiment_name = f"{nb_exp}_{region}_{loss}_{decoder_cfg.learning_rate}"
-    log_dir = os.path.join(decoder_cfg.log_dir, experiment_name)
+    out_dir = os.path.join(base_out_dir, experiment_name)
     
-    os.makedirs(log_dir, exist_ok=True)
-    print(f"Logging to: {log_dir}")
+    os.makedirs(out_dir, exist_ok=True)
+    print(f"Logging to: {out_dir}")
 
     # --- Save configs ---
-    save_configs(log_dir, decoder_cfg, encoder_cfg)
+    save_configs(out_dir, decoder_cfg, encoder_cfg)
 
     train_model(
         model,
@@ -138,12 +147,12 @@ def main():
         num_epochs=decoder_cfg.num_epochs,
         lr=decoder_cfg.learning_rate,
         loss_name=loss,
-        log_dir=log_dir,
+        out_dir=out_dir,
         save_best_model=decoder_cfg.save_best_model,
     )
 
     # --- Reconstructions ---
-    recon_dir = os.path.join(log_dir, f"reconstructions_epoch{decoder_cfg.num_epochs}")
+    recon_dir = os.path.join(out_dir, f"reconstructions_epoch{decoder_cfg.num_epochs}")
     save_npy(
         model,
         dm.val_dataloader(),

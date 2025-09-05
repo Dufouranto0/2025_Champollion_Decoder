@@ -67,12 +67,12 @@ def train_all_regions(config_path="configs/config.yaml", out_json="all_results.j
         )
 
         # --- Training ---
-        nb_exp = get_next_exp_number(decoder_cfg.log_dir)
+        nb_exp = get_next_exp_number(decoder_cfg.out_dir)
         experiment_name = f"{nb_exp}_{region}_{decoder_cfg.loss}_{decoder_cfg.learning_rate}"
-        log_dir = os.path.join(decoder_cfg.log_dir, experiment_name)
-        os.makedirs(log_dir, exist_ok=True)
+        out_dir = os.path.join(decoder_cfg.out_dir, experiment_name)
+        os.makedirs(out_dir, exist_ok=True)
 
-        save_configs(log_dir, decoder_cfg, encoder_cfg)
+        save_configs(out_dir, decoder_cfg, encoder_cfg)
 
         model, history = train_model(
             model,
@@ -81,7 +81,7 @@ def train_all_regions(config_path="configs/config.yaml", out_json="all_results.j
             num_epochs=decoder_cfg.num_epochs,
             lr=decoder_cfg.learning_rate,
             loss_name=decoder_cfg.loss,
-            log_dir=log_dir,
+            out_dir=out_dir,
             save_best_model=decoder_cfg.save_best_model,
         )
 
@@ -96,7 +96,7 @@ def train_all_regions(config_path="configs/config.yaml", out_json="all_results.j
         }
 
     # --- Save all results to JSON ---
-    out_json = os.path.join(decoder_cfg.log_dir, out_json)
+    out_json = os.path.join(decoder_cfg.out_dir, out_json)
     with open(out_json, "w") as f:
         json.dump(results, f, indent=2)
     print(f"\nSaved results for all regions in {out_json}")

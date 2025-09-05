@@ -28,7 +28,7 @@ def train_model(
     num_epochs: int = 10,
     lr: float = 5e-4,
     loss_name: str = "bce",
-    log_dir: str = "runs",
+    out_dir: str = "runs",
     save_best_model: bool = True,
 ):
     """
@@ -41,7 +41,7 @@ def train_model(
         num_epochs (int)
         lr (float)
         loss_name (str): one of {"mse", "bce", "ce"}
-        log_dir (str): path for tensorboard logs
+        out_dir (str): path for tensorboard logs
         save_best_model (bool): whether to save the best model checkpoint
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -51,7 +51,7 @@ def train_model(
     loss_fn = get_loss_fn(loss_name)
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
-    writer = SummaryWriter(log_dir=log_dir)
+    writer = SummaryWriter(log_dir=out_dir)
     best_val_loss = float("inf")
 
     history = {"train_loss": [], "val_loss": []}
@@ -102,13 +102,13 @@ def train_model(
         # Save best model
         if save_best_model and avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
-            os.makedirs(log_dir, exist_ok=True)
-            best_model_path = os.path.join(log_dir, "best_model.pth")
+            os.makedirs(out_dir, exist_ok=True)
+            best_model_path = os.path.join(out_dir, "best_model.pth")
             torch.save(model.state_dict(), best_model_path)
             print(f"Saved best model at epoch {epoch+1} with val_loss={avg_val_loss:.4f}")
     
     # --- Save history as JSON
-    with open(os.path.join(log_dir, "loss_history.json"), "w") as f:
+    with open(os.path.join(out_dir, "loss_history.json"), "w") as f:
         json.dump(history, f, indent=2)
 
     writer.close()
