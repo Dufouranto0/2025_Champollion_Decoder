@@ -1,7 +1,7 @@
 # config.yaml
 
 # Paths
-model_to_decode_path: /neurospin/dico/data/deep_folding/current/models/Champollion_V1_after_ablation/STs_left/name08-32-58_223
+model_to_decode_path: /neurospin/dico/data/deep_folding/current/models/Champollion_V1_after_ablation/SFint-SR_right/name08-12-43_252
 dataset_folder: /neurospin/dico/data/deep_folding/current/datasets
 train_csv: ukb40_random_embeddings/train_embeddings.csv
 val_test_csv: ukb40_random_embeddings/val_embeddings.csv
